@@ -8,6 +8,8 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle2,
+  Users,
+  Sparkles,
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api.js';
 
@@ -15,10 +17,17 @@ export default function AdminAssessments() {
   const [assessments, setAssessments] = useState([]);
   const [projects, setProjects] = useState([]);
   const [bankQuestions, setBankQuestions] = useState([]);
+  const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  // Assign Candidates Modal
+  const [assignExamTarget, setAssignExamTarget] = useState(null);
+  const [assignedUserIds, setAssignedUserIds] = useState([]);
+  const [assignModeEdit, setAssignModeEdit] = useState('assigned_only');
+  const [savingAssignments, setSavingAssignments] = useState(false);
 
   // Editor Modal
   const [editorOpen, setEditorOpen] = useState(false);
@@ -27,7 +36,7 @@ export default function AdminAssessments() {
     title: '',
     projectId: '',
     projectTaskRef: '',
-    instructions: 'Read all scenario prompts and guideline rules carefully before selecting your answer.',
+    instructions: 'Read all scenario prompts and rules carefully before selecting your answer.',
     isTimed: true,
     timeLimitMinutes: 30,
     pauseOnDisconnect: true,
@@ -37,7 +46,8 @@ export default function AdminAssessments() {
     randomPoolTag: '',
     availableFrom: '',
     availableUntil: '',
-    status: 'draft',
+    status: 'published',
+    assignmentMode: 'assigned_only',
   });
   const [selectedQuestions, setSelectedQuestions] = useState([]);
   const [inlineDraft, setInlineDraft] = useState({
@@ -57,14 +67,16 @@ export default function AdminAssessments() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [assRes, projRes, bankRes] = await Promise.all([
+      const [assRes, projRes, bankRes, empRes] = await Promise.all([
         apiRequest('/api/admin/assessments'),
         apiRequest('/api/admin/projects'),
         apiRequest('/api/admin/question-bank?status=active'),
+        apiRequest('/api/admin/employees?status=active'),
       ]);
       setAssessments(assRes.assessments || []);
       setProjects(projRes.projects || []);
       setBankQuestions(bankRes.questions || []);
+      setCandidates(empRes.employees || []);
     } catch (err) {
       setError(err.message || 'Unable to load assessments.');
     } finally {
@@ -92,11 +104,46 @@ export default function AdminAssessments() {
       randomPoolTag: '',
       availableFrom: '',
       availableUntil: '',
-      status: 'draft',
+      status: 'published',
+      assignmentMode: 'assigned_only',
     });
     setSelectedQuestions([]);
     setShowInlineAdder(false);
     setEditorOpen(true);
+  };
+
+  const openAssignCandidates = async (exam) => {
+    setError('');
+    try {
+      const res = await apiRequest(`/api/admin/assessments/${exam.id}`);
+      setAssignExamTarget(res.assessment);
+      setAssignedUserIds(res.assignedUserIds || []);
+      setAssignModeEdit(res.assessment.assignmentMode || 'assigned_only');
+    } catch (err) {
+      setError(err.message || 'Unable to load candidate assignments.');
+    }
+  };
+
+  const handleSaveExamAssignments = async (e) => {
+    e.preventDefault();
+    if (!assignExamTarget) return;
+    setSavingAssignments(true);
+    try {
+      await apiRequest(`/api/admin/assessments/${assignExamTarget.id}/assignments`, {
+        method: 'PUT',
+        body: {
+          userIds: assignedUserIds,
+          assignmentMode: assignModeEdit,
+        },
+      });
+      setNotice(`Saved candidate assignments for "${assignExamTarget.title}".`);
+      setAssignExamTarget(null);
+      loadAll();
+    } catch (err) {
+      setError(err.message || 'Unable to save assignments.');
+    } finally {
+      setSavingAssignments(false);
+    }
   };
 
   const openEdit = async (id) => {
@@ -120,6 +167,7 @@ export default function AdminAssessments() {
         availableFrom: a.availableFrom ? a.availableFrom.slice(0, 16) : '',
         availableUntil: a.availableUntil ? a.availableUntil.slice(0, 16) : '',
         status: a.status,
+        assignmentMode: a.assignmentMode || 'assigned_only',
       });
       setSelectedQuestions(
         (res.questions || []).map((q) => ({
@@ -256,19 +304,43 @@ export default function AdminAssessments() {
     }
   };
 
+  const handleSeedExamTemplates = async () => {
+    setError('');
+    setNotice('');
+    try {
+      const res = await apiRequest('/api/admin/assessments/seed-templates', { method: 'POST' });
+      if (res.createdExams > 0) {
+        setNotice(
+          `Loaded ${res.createdExams} Real AI Evaluation & Aptitude Exam(s) (${res.createdQuestions} questions added to Question Bank). Ready to assign to candidates!`
+        );
+      } else {
+        setNotice('All 3 AI Evaluation & Aptitude template exams are already loaded.');
+      }
+      loadAll();
+    } catch (err) {
+      setError(err.message || 'Unable to load exam templates.');
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 14, marginBottom: 22 }}>
         <div>
-          <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>Assessments Management</h1>
+          <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>Exams &amp; Candidate Assignments</h1>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.92rem' }}>
-            Create, preview, publish, duplicate, or archive project assessments with fixed or random-pool question selection and timed/untimed controls.
+            Create timed or untimed aptitude &amp; AI evaluation exams, configure pass marks, and control which candidates are assigned each exam.
           </p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={openCreate}>
-          <Plus size={16} />
-          Create Assessment
-        </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <button type="button" className="btn btn-secondary" onClick={handleSeedExamTemplates}>
+            <Sparkles size={15} />
+            Load AI Evaluation &amp; Aptitude Pack
+          </button>
+          <button type="button" className="btn btn-primary" onClick={openCreate}>
+            <Plus size={16} />
+            Create Exam
+          </button>
+        </div>
       </div>
 
       {error && <div className="alert alert-error"><AlertCircle size={18} /><span>{error}</span></div>}
@@ -279,10 +351,10 @@ export default function AdminAssessments() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Title</th>
-                <th>Project / Task</th>
+                <th>Exam Title</th>
+                <th>Access / Assigned</th>
                 <th>Timing</th>
-                <th>Selection</th>
+                <th>Questions</th>
                 <th>Pass %</th>
                 <th>Attempts</th>
                 <th>Status</th>
@@ -291,22 +363,37 @@ export default function AdminAssessments() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8}>Loading assessments...</td></tr>
+                <tr><td colSpan={8}>Loading exams...</td></tr>
               ) : assessments.length === 0 ? (
-                <tr><td colSpan={8}>No assessments configured yet.</td></tr>
+                <tr><td colSpan={8}>No exams configured yet.</td></tr>
               ) : (
                 assessments.map((a) => (
                   <tr key={a.id}>
-                    <td><strong>{a.title}</strong></td>
-                    <td>{a.projectName || a.projectTaskRef || 'General'}</td>
+                    <td>
+                      <strong>{a.title}</strong>
+                      <div style={{ fontSize: '0.77rem', color: 'var(--text-muted)' }}>
+                        {a.projectName || a.projectTaskRef || 'Aptitude / Screening'}
+                      </div>
+                    </td>
+                    <td>
+                      {a.assignmentMode === 'assigned_only' ? (
+                        <span className="badge badge-info">
+                          {a.assignedCandidatesCount || 0} Assigned
+                        </span>
+                      ) : (
+                        <span className="badge badge-neutral">
+                          Open ({a.assignedCandidatesCount || 0} Direct)
+                        </span>
+                      )}
+                    </td>
                     <td>{a.isTimed ? `${a.timeLimitMinutes}m Timed` : 'Untimed'}</td>
                     <td>
                       {a.selectionMode === 'random_pool'
                         ? `Random (${a.randomSampleCount})`
-                        : `Fixed (${a.linkedQuestionCount})`}
+                        : `Fixed (${a.linkedQuestionsCount ?? a.linkedQuestionCount ?? 0})`}
                     </td>
                     <td>{a.passingPercentage}%</td>
-                    <td>{a.attemptCount}</td>
+                    <td>{a.attemptsCount ?? a.attemptCount ?? 0}</td>
                     <td>
                       <span
                         className={`badge ${
@@ -322,6 +409,9 @@ export default function AdminAssessments() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button type="button" className="btn btn-primary btn-sm" onClick={() => openAssignCandidates(a)}>
+                          <Users size={14} /> Assign ({a.assignedCandidatesCount || 0})
+                        </button>
                         <button type="button" className="btn btn-secondary btn-sm" onClick={() => openPreview(a.id)}>
                           <Eye size={14} /> Preview
                         </button>
@@ -431,6 +521,17 @@ export default function AdminAssessments() {
                     <option value="draft">Draft</option>
                     <option value="published">Published</option>
                     <option value="archived">Archived</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Candidate Access Control</label>
+                  <select
+                    className="neu-select"
+                    value={form.assignmentMode}
+                    onChange={(e) => setForm({ ...form, assignmentMode: e.target.value })}
+                  >
+                    <option value="assigned_only">Assigned Candidates Only (Recommended)</option>
+                    <option value="all_active">Open to All Unassigned Candidate Accounts</option>
                   </select>
                 </div>
               </div>
@@ -725,6 +826,118 @@ export default function AdminAssessments() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Candidates to Exam Modal */}
+      {assignExamTarget && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card" style={{ maxWidth: 560 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h2 style={{ fontSize: '1.22rem', margin: 0 }}>
+                  Assign Candidates — {assignExamTarget.title}
+                </h2>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Choose who can view and take this exam in the Candidate Portal.
+                </span>
+              </div>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignExamTarget(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExamAssignments}>
+              <div className="form-group">
+                <label className="form-label">Access Policy</label>
+                <select
+                  className="neu-select"
+                  value={assignModeEdit}
+                  onChange={(e) => setAssignModeEdit(e.target.value)}
+                >
+                  <option value="assigned_only">Strictly Assigned Candidates Only</option>
+                  <option value="all_active">Open to All Active Candidate Logins</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Candidate Accounts ({assignedUserIds.length} selected)
+                  </label>
+                  {candidates.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() =>
+                        setAssignedUserIds(
+                          assignedUserIds.length === candidates.length ? [] : candidates.map((c) => c.id)
+                        )
+                      }
+                    >
+                      {assignedUserIds.length === candidates.length ? 'Clear All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
+
+                {candidates.length === 0 ? (
+                  <div className="neu-panel-inset" style={{ padding: 14, fontSize: '0.86rem', color: 'var(--text-muted)' }}>
+                    No active candidate accounts yet. Issue a login from <strong>Job Applications</strong> or create one under <strong>Candidates &amp; Logins</strong>.
+                  </div>
+                ) : (
+                  <div className="neu-panel-inset" style={{ padding: 10, maxHeight: 240, overflowY: 'auto', display: 'grid', gap: 6 }}>
+                    {candidates.map((cand) => {
+                      const checked = assignedUserIds.includes(cand.id);
+                      return (
+                        <label
+                          key={cand.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setAssignedUserIds((prev) =>
+                                  prev.includes(cand.id)
+                                    ? prev.filter((id) => id !== cand.id)
+                                    : [...prev, cand.id]
+                                )
+                              }
+                            />
+                            <span>
+                              <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{cand.fullName}</strong>
+                              <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                {cand.employeeCode} &bull; {cand.email}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setAssignExamTarget(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingAssignments}>
+                  {savingAssignments ? 'Saving...' : 'Save Assignments'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

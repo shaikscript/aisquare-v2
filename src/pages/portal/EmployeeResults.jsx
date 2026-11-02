@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Lock, Award } from 'lucide-react';
 import { apiRequest } from '../../utils/api.js';
 
 function formatDuration(sec) {
@@ -24,28 +24,41 @@ export default function EmployeeResults() {
   return (
     <div>
       <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>Assessment Results &amp; History</h1>
+        <h1 style={{ fontSize: '1.7rem', marginBottom: 4 }}>My Exam Results</h1>
         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.92rem' }}>
-          Scores, pass/fail status, incorrect answers, and explanations appear strictly after an administrator reviews and releases the result. All historical attempts are preserved.
+          Submitted exams remain under review until an administrator releases your official result.
         </p>
       </div>
 
       {loading ? (
-        <div className="neu-card">Loading attempt history...</div>
+        <div className="neu-card">Loading exam results...</div>
       ) : results.length === 0 ? (
-        <div className="neu-card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-          No completed assessment attempts on record yet.
+        <div className="neu-card" style={{ textAlign: 'center', padding: '44px 28px' }}>
+          <Award size={30} style={{ color: 'var(--text-muted)', marginBottom: 10 }} />
+          <h2 style={{ fontSize: '1.15rem', marginBottom: 6 }}>No Submitted Exams Yet</h2>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            Once you complete an assigned exam, its submission status and released result will appear here.
+          </p>
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 16 }}>
           {results.map((r) => {
             const isOpen = expandedId === r.id;
+            const canExpandAnswers = r.isReleased && r.showAnswers && (r.questions || []).length > 0;
+
             return (
               <div key={r.id} className="neu-card">
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 14,
+                  }}
+                >
                   <div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
-                      <span className="badge badge-info">{r.projectName}</span>
                       <span className="badge badge-neutral">Attempt #{r.attemptNumber}</span>
                       <span className="badge badge-neutral">
                         <Clock size={12} /> Duration: {formatDuration(r.durationSeconds)}
@@ -57,7 +70,7 @@ export default function EmployeeResults() {
                     </div>
                   </div>
 
-                  {/* Unreleased vs Released Gate */}
+                  {/* Strictly Controlled by Admin Release Settings */}
                   {!r.isReleased ? (
                     <span className="badge badge-warn" style={{ padding: '7px 13px' }}>
                       <Lock size={13} />
@@ -66,42 +79,57 @@ export default function EmployeeResults() {
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--text-primary)' }}>
-                          {r.finalScore} / {r.totalPossibleMarks} ({r.percentage}%)
-                        </div>
-                        <div>
-                          {r.status === 'expired' ? (
-                            <span className="badge badge-danger">Not Attempted — Time Expired</span>
-                          ) : r.passed ? (
-                            <span className="badge badge-success">Passed</span>
-                          ) : (
-                            <span className="badge badge-warn">Did Not Pass</span>
-                          )}
-                        </div>
+                        {r.showScore && r.finalScore !== null && (
+                          <div style={{ fontWeight: 700, fontSize: '1.15rem', color: 'var(--text-primary)' }}>
+                            {r.finalScore} / {r.totalPossibleMarks} ({r.percentage}%)
+                          </div>
+                        )}
+                        {r.showPassFail && r.passed !== null && (
+                          <div style={{ marginTop: 2 }}>
+                            {r.status === 'expired' ? (
+                              <span className="badge badge-danger">Time Expired</span>
+                            ) : r.passed ? (
+                              <span className="badge badge-success">Passed / Qualified</span>
+                            ) : (
+                              <span className="badge badge-warn">Did Not Pass</span>
+                            )}
+                          </div>
+                        )}
+                        {!r.showScore && !r.showPassFail && (
+                          <span className="badge badge-info">Reviewed &amp; Released</span>
+                        )}
                       </div>
 
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setExpandedId(isOpen ? null : r.id)}
-                      >
-                        {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                        {isOpen ? 'Hide Review' : 'Review Answers'}
-                      </button>
+                      {canExpandAnswers && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setExpandedId(isOpen ? null : r.id)}
+                        >
+                          {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                          {isOpen ? 'Hide Breakdown' : 'View Breakdown'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {r.isReleased && isOpen && (
-                  <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid rgba(148, 163, 184, 0.2)' }}>
-                    {r.reviewerOverallComment && (
-                      <div className="alert alert-info">
-                        <span>
-                          <strong>Administrator Review Note:</strong> {r.reviewerOverallComment}
-                        </span>
-                      </div>
-                    )}
+                {r.isReleased && r.reviewerOverallComment && (
+                  <div className="alert alert-info" style={{ marginTop: 14, marginBottom: 0 }}>
+                    <span>
+                      <strong>Administrator Feedback:</strong> {r.reviewerOverallComment}
+                    </span>
+                  </div>
+                )}
 
+                {canExpandAnswers && isOpen && (
+                  <div
+                    style={{
+                      marginTop: 18,
+                      paddingTop: 18,
+                      borderTop: '1px solid rgba(148, 163, 184, 0.2)',
+                    }}
+                  >
                     <div style={{ display: 'grid', gap: 12 }}>
                       {r.questions.map((q) => (
                         <div
@@ -109,22 +137,41 @@ export default function EmployeeResults() {
                           className="neu-panel-inset"
                           style={{
                             padding: 16,
-                            borderLeft: q.isCorrect
-                              ? '4px solid #22c55e'
-                              : '4px solid #ef4444',
+                            borderLeft: q.isCorrect ? '4px solid #22c55e' : '4px solid #ef4444',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              gap: 10,
+                              marginBottom: 6,
+                            }}
+                          >
                             <strong style={{ color: 'var(--text-primary)' }}>
                               Q{q.sortOrder}. {q.prompt}
                             </strong>
                             <span style={{ whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.85rem' }}>
                               {q.isCorrect ? (
-                                <span style={{ color: 'var(--text-success-strong)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <span
+                                  style={{
+                                    color: 'var(--text-success-strong)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}
+                                >
                                   <CheckCircle2 size={15} /> {q.awardedMarks}/{q.marks}
                                 </span>
                               ) : (
-                                <span style={{ color: 'var(--text-danger-strong)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <span
+                                  style={{
+                                    color: 'var(--text-danger-strong)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}
+                                >
                                   <XCircle size={15} /> {q.awardedMarks}/{q.marks}
                                 </span>
                               )}
@@ -132,7 +179,7 @@ export default function EmployeeResults() {
                           </div>
 
                           <div style={{ fontSize: '0.88rem', marginTop: 6 }}>
-                            <strong>Your Response:</strong>{' '}
+                            <strong>Your Answer:</strong>{' '}
                             {q.employeeAnswer || <em>Unanswered (0 marks)</em>}
                           </div>
 
@@ -143,14 +190,20 @@ export default function EmployeeResults() {
                           )}
 
                           {!q.isCorrect && q.correctAnswer && (
-                            <div style={{ fontSize: '0.88rem', marginTop: 6, color: 'var(--text-success-strong)' }}>
-                              <strong>Correct Answer:</strong> {q.correctAnswer}
+                            <div
+                              style={{
+                                fontSize: '0.88rem',
+                                marginTop: 6,
+                                color: 'var(--text-success-strong)',
+                              }}
+                            >
+                              <strong>Expected Answer:</strong> {q.correctAnswer}
                             </div>
                           )}
 
                           {q.reviewerComment && (
-                            <div style={{ fontSize: '0.86rem', marginTop: 6, color: 'var(--accent-primary)' }}>
-                              <strong>Reviewer Feedback:</strong> {q.reviewerComment}
+                            <div style={{ fontSize: '0.86rem', marginTop: 6, color: 'var(--text-primary)' }}>
+                              <strong>Reviewer Note:</strong> {q.reviewerComment}
                             </div>
                           )}
 

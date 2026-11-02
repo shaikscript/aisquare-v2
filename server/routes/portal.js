@@ -331,11 +331,32 @@ router.get('/guidelines/:id/pdf', (req, res) => {
  * PHASE 5: EMPLOYEE ASSESSMENTS & ATTEMPT RUNNER (Sections 6.4–6.7)
  * ========================================================================== */
 
+function isExamVisibleToCandidate(userId, assessmentRow, restrictToAssigned) {
+  const explicitlyAssigned = db
+    .prepare('SELECT 1 FROM exam_assignments WHERE assessment_id = ? AND user_id = ?')
+    .get(assessmentRow.id, userId);
+  if (explicitlyAssigned) return true;
+
+  // If the candidate already has an attempt on record, allow status visibility
+  const hasAttempt = db
+    .prepare('SELECT 1 FROM assessment_attempts WHERE assessment_id = ? AND user_id = ? LIMIT 1')
+    .get(assessmentRow.id, userId);
+  if (hasAttempt) return true;
+
+  if (restrictToAssigned) return false;
+  return (assessmentRow.assignmentMode || assessmentRow.assignment_mode || 'all_active') === 'all_active';
+}
+
 router.get('/assessments', (req, res) => {
   // Sync any in-progress attempts first
   getActiveInProgressAttempt(req.user.id);
 
-  const assessments = db
+  const userRow = db
+    .prepare('SELECT restrict_to_assigned_exams FROM users WHERE id = ?')
+    .get(req.user.id);
+  const restrictToAssigned = Boolean(userRow?.restrict_to_assigned_exams);
+
+  const rawAssessments = db
     .prepare(
       `SELECT
          a.id,
@@ -344,6 +365,7 @@ router.get('/assessments', (req, res) => {
          a.project_id AS projectId,
          p.name AS projectName,
          a.project_task_ref AS projectTaskRef,
+         a.assignment_mode AS assignmentMode,
          a.is_timed AS isTimed,
          a.time_limit_minutes AS timeLimitMinutes,
          a.selection_mode AS selectionMode,
@@ -358,6 +380,10 @@ router.get('/assessments', (req, res) => {
        ORDER BY a.created_at DESC`
     )
     .all();
+
+  const assessments = rawAssessments.filter((a) =>
+    isExamVisibleToCandidate(req.user.id, a, restrictToAssigned)
+  );
 
   const enriched = assessments.map((a) => {
     const attempts = db
@@ -450,6 +476,16 @@ router.post('/assessments/:id/start', (req, res) => {
   if (!assessment) {
     return res.status(403).json({
       error: 'This assessment is not currently available for access.',
+    });
+  }
+
+  const userRow = db
+    .prepare('SELECT restrict_to_assigned_exams FROM users WHERE id = ?')
+    .get(req.user.id);
+  const restrictToAssigned = Boolean(userRow?.restrict_to_assigned_exams);
+  if (!isExamVisibleToCandidate(req.user.id, assessment, restrictToAssigned)) {
+    return res.status(403).json({
+      error: 'This exam has not been assigned to your candidate account by an administrator.',
     });
   }
 
@@ -812,7 +848,18 @@ router.post('/attempts/:attemptId/interruption', (req, res) => {
     Math.max(0, Math.floor(Number(req.body?.offlineSeconds || 0)))
   );
 
-  if (eventType === 'CONNECTION_LOST') {
+  if (eventType === 'TAB_SWITCH') {
+    db.prepare(
+      `UPDATE assessment_attempts
+       SET interruption_count = interruption_count + 1
+       WHERE id = ?`
+    ).run(attemptId);
+
+    db.prepare(
+      `INSERT INTO attempt_events (attempt_id, event_type, detail, created_at)
+       VALUES (?, 'TAB_SWITCH', 'Candidate switched browser tab or left exam window.', datetime('now'))`
+    ).run(attemptId);
+  } else if (eventType === 'CONNECTION_LOST') {
     db.prepare(
       `UPDATE assessment_attempts
        SET disconnect_started_at = COALESCE(disconnect_started_at, datetime('now')),
@@ -853,6 +900,7 @@ router.post('/attempts/:attemptId/interruption', (req, res) => {
     ok: true,
     status: synced.attempt.status,
     remainingSeconds: synced.remainingSeconds,
+    interruptionCount: synced.attempt.interruption_count,
   });
 });
 
@@ -1019,6 +1067,10 @@ router.get('/results', (req, res) => {
         reviewerComment: q.reviewerComment || null,
       }));
 
+    const showScore = att.release_show_score === null || att.release_show_score === undefined ? true : Boolean(att.release_show_score);
+    const showPassFail = att.release_show_pass_fail === null || att.release_show_pass_fail === undefined ? true : Boolean(att.release_show_pass_fail);
+    const showAnswers = att.release_show_answers === null || att.release_show_answers === undefined ? true : Boolean(att.release_show_answers);
+
     return {
       id: att.id,
       assessmentId: att.assessment_id,
@@ -1033,12 +1085,15 @@ router.get('/results', (req, res) => {
         att.status === 'expired' ? 'Not Attempted — Time Expired' : 'Result Released',
       isReleased: true,
       releasedAt: att.released_at,
-      finalScore: att.final_score,
-      totalPossibleMarks: att.total_possible_marks,
-      percentage: att.percentage,
-      passed: att.status === 'expired' ? false : Boolean(att.passed),
+      showScore,
+      showPassFail,
+      showAnswers,
+      finalScore: showScore ? att.final_score : null,
+      totalPossibleMarks: showScore ? att.total_possible_marks : null,
+      percentage: showScore ? att.percentage : null,
+      passed: showPassFail ? (att.status === 'expired' ? false : Boolean(att.passed)) : null,
       reviewerOverallComment: att.reviewer_overall_comment || null,
-      questions: questionBreakdown,
+      questions: showAnswers ? questionBreakdown : [],
     };
   });
 

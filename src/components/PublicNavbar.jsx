@@ -180,7 +180,7 @@ export default function PublicNavbar({ animateEntrance = false }) {
             onClick={closeMenu}
             className="vesper-nav-pill vesper-mobile-only-link"
           >
-            {user ? (user.role === 'admin' ? 'Admin Console' : 'Evaluator Portal') : 'Evaluator Sign In'}
+            {user ? (user.role === 'admin' ? 'Admin Console' : 'Exam Portal') : 'Exam Portal'}
           </Link>
         </nav>
 
@@ -194,7 +194,7 @@ export default function PublicNavbar({ animateEntrance = false }) {
               }`}
               style={{ '--d': '0.54s' }}
             >
-              {user.role === 'admin' ? 'Admin Console' : 'Evaluator Portal'}
+              {user.role === 'admin' ? 'Admin Console' : 'Exam Portal'}
             </Link>
           ) : (
             <Link
@@ -204,7 +204,7 @@ export default function PublicNavbar({ animateEntrance = false }) {
               }`}
               style={{ '--d': '0.54s' }}
             >
-              Evaluator Sign In
+              Exam Portal
             </Link>
           )}
 

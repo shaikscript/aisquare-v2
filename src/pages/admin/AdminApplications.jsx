@@ -14,11 +14,24 @@ import {
   Users,
   MapPin,
   ExternalLink,
+  KeyRound,
+  ClipboardCheck,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { apiRequest, withSessionQuery } from '../../utils/api.js';
 import { resolveCompanyMap } from '../../utils/mapHelper.js';
 
 const APP_STATUSES = ['New', 'Under Review', 'Shortlisted', 'Selected', 'Rejected'];
+
+function generateCandidatePassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let out = 'AiSq';
+  for (let i = 0; i < 8; i += 1) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${out}9!`;
+}
 
 export default function AdminApplications() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -32,6 +45,16 @@ export default function AdminApplications() {
   const [selectedApp, setSelectedApp] = useState(null);
   const [appNotes, setAppNotes] = useState('');
   const [appStatusEdit, setAppStatusEdit] = useState('New');
+
+  // Issue Candidate Login & Assign Exam Modal
+  const [availableExams, setAvailableExams] = useState([]);
+  const [issueTarget, setIssueTarget] = useState(null);
+  const [issueUsername, setIssueUsername] = useState('');
+  const [issuePassword, setIssuePassword] = useState('');
+  const [issueExamIds, setIssueExamIds] = useState([]);
+  const [issuingLogin, setIssuingLogin] = useState(false);
+  const [issuedCredentialsCard, setIssuedCredentialsCard] = useState(null);
+  const [copiedCreds, setCopiedCreds] = useState(false);
 
   // Jobs state
   const [jobs, setJobs] = useState([]);
@@ -69,20 +92,71 @@ export default function AdminApplications() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [appsRes, jobsRes, msgsRes, settingsRes] = await Promise.all([
+      const [appsRes, jobsRes, msgsRes, settingsRes, examsRes] = await Promise.all([
         apiRequest(`/api/admin/applications?status=${encodeURIComponent(appStatusFilter)}`),
         apiRequest('/api/admin/jobs'),
         apiRequest('/api/admin/contact-messages'),
         apiRequest('/api/admin/company-settings'),
+        apiRequest('/api/admin/assessments'),
       ]);
       setApplications(appsRes.applications || []);
       setJobs(jobsRes.jobs || []);
       setMessages(msgsRes.messages || []);
       setCompanySettings(settingsRes);
+      setAvailableExams((examsRes.assessments || []).filter((x) => x.status !== 'archived'));
     } catch (err) {
       setBanner({ type: 'error', text: err.message || 'Unable to load careers & enquiries data.' });
     }
   }, [appStatusFilter]);
+
+  const openIssueExamModal = (app) => {
+    setIssueTarget(app);
+    const existing = app.candidateAccount;
+    const baseUser = existing?.username
+      ? existing.username
+      : String(app.email || '')
+          .split('@')[0]
+          .toLowerCase()
+          .replace(/[^a-z0-9._-]/g, '.')
+          .slice(0, 32);
+    setIssueUsername(baseUser);
+    setIssuePassword(existing ? '' : generateCandidatePassword());
+    setIssueExamIds(existing?.assignedExamIds || []);
+  };
+
+  const toggleIssueExam = (examId) => {
+    setIssueExamIds((prev) =>
+      prev.includes(examId) ? prev.filter((id) => id !== examId) : [...prev, examId]
+    );
+  };
+
+  const handleIssueExamLogin = async (e) => {
+    e.preventDefault();
+    if (!issueTarget) return;
+    setIssuingLogin(true);
+    try {
+      const res = await apiRequest(`/api/admin/applications/${issueTarget.id}/issue-exam-login`, {
+        method: 'POST',
+        body: {
+          username: issueUsername,
+          password: issuePassword,
+          assessmentIds: issueExamIds,
+        },
+      });
+      setIssuedCredentialsCard(res.credentials);
+      setCopiedCreds(false);
+      setIssueTarget(null);
+      setBanner({
+        type: 'success',
+        text: `${res.isNewAccount ? 'Issued new candidate login' : 'Updated candidate exam assignments'} (${res.credentials.employeeCode}) for ${res.credentials.fullName}.`,
+      });
+      loadAll();
+    } catch (err) {
+      setBanner({ type: 'error', text: err.message || 'Unable to issue exam login.' });
+    } finally {
+      setIssuingLogin(false);
+    }
+  };
 
   useEffect(() => {
     loadAll();
@@ -275,6 +349,64 @@ export default function AdminApplications() {
       {/* TAB 1: CANDIDATE APPLICATIONS */}
       {activeTab === 'applications' && (
         <div>
+          {issuedCredentialsCard && (
+            <div className="neu-card" style={{ marginBottom: 18, border: '1px solid var(--border-strong)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                <div>
+                  <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                    Candidate Exam Login Ready — {issuedCredentialsCard.fullName} ({issuedCredentialsCard.employeeCode})
+                  </strong>
+                  <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                    Copy and share these credentials with the candidate so they can sign in at <code>/login</code> and take their assigned exam.
+                  </div>
+                </div>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setIssuedCredentialsCard(null)}>
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="neu-panel-inset" style={{ padding: 14, fontSize: '0.88rem', display: 'grid', gap: 6, marginBottom: 12 }}>
+                <div><strong>Exam Portal Sign-In:</strong> {window.location.origin}/login</div>
+                <div><strong>Email / Username:</strong> {issuedCredentialsCard.email} &nbsp;(or <code>{issuedCredentialsCard.username}</code>)</div>
+                {issuedCredentialsCard.password && (
+                  <div><strong>Password:</strong> <code>{issuedCredentialsCard.password}</code></div>
+                )}
+                <div>
+                  <strong>Assigned Exam(s):</strong>{' '}
+                  {issuedCredentialsCard.assignedExams?.length > 0
+                    ? issuedCredentialsCard.assignedExams.map((x) => x.title).join(', ')
+                    : 'None selected yet'}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  const text = [
+                    `AI Square Exam Portal Invitation`,
+                    `Candidate: ${issuedCredentialsCard.fullName} (${issuedCredentialsCard.employeeCode})`,
+                    `Portal Login URL: ${window.location.origin}/login`,
+                    `Username / Email: ${issuedCredentialsCard.username} (${issuedCredentialsCard.email})`,
+                    issuedCredentialsCard.password ? `Password: ${issuedCredentialsCard.password}` : null,
+                    `Assigned Exam(s): ${
+                      issuedCredentialsCard.assignedExams?.length > 0
+                        ? issuedCredentialsCard.assignedExams.map((x) => x.title).join(', ')
+                        : 'Pending Assignment'
+                    }`,
+                  ]
+                    .filter(Boolean)
+                    .join('\n');
+                  navigator.clipboard?.writeText(text);
+                  setCopiedCreds(true);
+                }}
+              >
+                {copiedCreds ? <Check size={15} /> : <Copy size={15} />}
+                {copiedCreds ? 'Copied Invite Details!' : 'Copy Login & Exam Invite'}
+              </button>
+            </div>
+          )}
+
           <div className="neu-card-compact" style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
             <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
               Status changes are internal only and never send automatic emails to candidates.
@@ -330,6 +462,12 @@ export default function AdminApplications() {
                         </td>
                         <td>
                           <span className="badge badge-info">{app.status}</span>
+                          {app.candidateAccount && (
+                            <div style={{ marginTop: 6, fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                              <strong>{app.candidateAccount.employeeCode}</strong> &bull;{' '}
+                              {app.candidateAccount.assignedExams?.length || 0} Exam(s)
+                            </div>
+                          )}
                         </td>
                         <td>
                           <a
@@ -343,17 +481,27 @@ export default function AdminApplications() {
                           </a>
                         </td>
                         <td>
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            onClick={() => {
-                              setSelectedApp(app);
-                              setAppStatusEdit(app.status);
-                              setAppNotes(app.adminNotes || '');
-                            }}
-                          >
-                            Review &amp; Status
-                          </button>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => openIssueExamModal(app)}
+                            >
+                              <KeyRound size={14} />
+                              {app.candidateAccount ? 'Assign Exams / Login' : 'Issue Login & Exam'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => {
+                                setSelectedApp(app);
+                                setAppStatusEdit(app.status);
+                                setAppNotes(app.adminNotes || '');
+                              }}
+                            >
+                              Review
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -843,6 +991,135 @@ export default function AdminApplications() {
                 </button>
                 <button type="submit" className="btn btn-primary">
                   Save Vacancy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Candidate Login & Assign Exam Modal */}
+      {issueTarget && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card" style={{ maxWidth: 580 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: '1.22rem', margin: 0 }}>
+                {issueTarget.candidateAccount
+                  ? `Manage Login & Exams — ${issueTarget.fullName}`
+                  : `Issue Exam Login & Assign Exam — ${issueTarget.fullName}`}
+              </h2>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setIssueTarget(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleIssueExamLogin}>
+              <div className="neu-panel-inset" style={{ padding: 12, marginBottom: 14, fontSize: '0.86rem' }}>
+                <div><strong>Applicant:</strong> {issueTarget.fullName} ({issueTarget.email})</div>
+                <div><strong>Applied Track:</strong> {issueTarget.positionTitle}</div>
+                {issueTarget.candidateAccount && (
+                  <div style={{ marginTop: 4 }}>
+                    <strong>Existing ID:</strong> {issueTarget.candidateAccount.employeeCode} (<code>{issueTarget.candidateAccount.username}</code>)
+                  </div>
+                )}
+              </div>
+
+              <div className="grid-2" style={{ gap: 12 }}>
+                <div className="form-group">
+                  <label className="form-label">Login Username *</label>
+                  <input
+                    type="text"
+                    className="neu-input"
+                    value={issueUsername}
+                    disabled={Boolean(issueTarget.candidateAccount)}
+                    onChange={(e) => setIssueUsername(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">
+                    {issueTarget.candidateAccount ? 'New Password (Optional Reset)' : 'Initial Password *'}
+                  </label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      type="text"
+                      className="neu-input"
+                      placeholder={issueTarget.candidateAccount ? 'Leave blank to keep current' : 'Password'}
+                      value={issuePassword}
+                      onChange={(e) => setIssuePassword(e.target.value)}
+                      required={!issueTarget.candidateAccount}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setIssuePassword(generateCandidatePassword())}
+                    >
+                      Auto
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  <ClipboardCheck size={14} style={{ marginRight: 5, verticalAlign: 'middle' }} />
+                  Select Exam(s) to Assign to This Candidate
+                </label>
+                {availableExams.length === 0 ? (
+                  <div className="neu-panel-inset" style={{ padding: 12, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    No exams created yet. Create and publish an exam under <strong>Exams &amp; Assignments</strong> first, or issue login now and assign later.
+                  </div>
+                ) : (
+                  <div className="neu-panel-inset" style={{ padding: 12, maxHeight: 210, overflowY: 'auto', display: 'grid', gap: 8 }}>
+                    {availableExams.map((ex) => {
+                      const checked = issueExamIds.includes(ex.id);
+                      return (
+                        <label
+                          key={ex.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleIssueExam(ex.id)}
+                            />
+                            <span>
+                              <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{ex.title}</strong>
+                              <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                {ex.isTimed ? `${ex.timeLimitMinutes} min timed` : 'Untimed'} &bull; Status: {ex.status}
+                              </span>
+                            </span>
+                          </span>
+                          <span className={`badge ${ex.status === 'published' ? 'badge-success' : 'badge-warn'}`}>
+                            {ex.status}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIssueTarget(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={issuingLogin}>
+                  {issuingLogin
+                    ? 'Saving...'
+                    : issueTarget.candidateAccount
+                    ? 'Save Exam Assignments'
+                    : 'Issue Login & Assign Exam'}
                 </button>
               </div>
             </form>

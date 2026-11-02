@@ -4,6 +4,7 @@ import {
   Send,
   RotateCcw,
   Eye,
+  EyeOff,
   X,
   AlertCircle,
   CheckCircle2,
@@ -29,6 +30,13 @@ export default function AdminResults() {
   // Authorize Retake Modal
   const [retakeTarget, setRetakeTarget] = useState(null);
   const [retakeConditions, setRetakeConditions] = useState('');
+
+  // Granular Release Control Modal
+  const [releaseModalTarget, setReleaseModalTarget] = useState(null);
+  const [relShowScore, setRelShowScore] = useState(true);
+  const [relShowPassFail, setRelShowPassFail] = useState(true);
+  const [relShowAnswers, setRelShowAnswers] = useState(false);
+  const [relFeedback, setRelFeedback] = useState('');
 
   const loadAttempts = useCallback(async () => {
     setLoading(true);
@@ -95,17 +103,51 @@ export default function AdminResults() {
     }
   };
 
-  const handleRelease = async (attemptId) => {
+  const openReleaseModal = (att) => {
+    setReleaseModalTarget(att);
+    setRelShowScore(true);
+    setRelShowPassFail(true);
+    setRelShowAnswers(false);
+    setRelFeedback(att.reviewerOverallComment || '');
+  };
+
+  const handleConfirmRelease = async (e) => {
+    e.preventDefault();
+    if (!releaseModalTarget) return;
     setError('');
     try {
-      await apiRequest(`/api/admin/attempts/${attemptId}/release`, { method: 'POST' });
-      setNotice(`Result for Attempt #${attemptId} released to the employee portal.`);
+      await apiRequest(`/api/admin/attempts/${releaseModalTarget.id}/release`, {
+        method: 'POST',
+        body: {
+          showScore: relShowScore,
+          showPassFail: relShowPassFail,
+          showAnswers: relShowAnswers,
+          overallComment: relFeedback,
+        },
+      });
+      setNotice(`Result for Attempt #${releaseModalTarget.id} released to candidate portal.`);
+      const releasedId = releaseModalTarget.id;
+      setReleaseModalTarget(null);
+      if (detail && detail.attempt.id === releasedId) {
+        await openAttemptDetail(releasedId);
+      }
+      loadAttempts();
+    } catch (err) {
+      setError(err.message || 'Unable to release result.');
+    }
+  };
+
+  const handleUnrelease = async (attemptId) => {
+    setError('');
+    try {
+      await apiRequest(`/api/admin/attempts/${attemptId}/unrelease`, { method: 'POST' });
+      setNotice(`Result for Attempt #${attemptId} hidden from candidate view.`);
       if (detail && detail.attempt.id === attemptId) {
         await openAttemptDetail(attemptId);
       }
       loadAttempts();
     } catch (err) {
-      setError(err.message || 'Unable to release result.');
+      setError(err.message || 'Unable to hide result.');
     }
   };
 
@@ -235,8 +277,13 @@ export default function AdminResults() {
                           <Eye size={14} /> Inspect / Grade
                         </button>
                         {att.status !== 'in_progress' && !att.isReleased && !(att.requiresManualReview && att.reviewStatus === 'pending') && (
-                          <button type="button" className="btn btn-primary btn-sm" onClick={() => handleRelease(att.id)}>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => openReleaseModal(att)}>
                             <Send size={13} /> Release
+                          </button>
+                        )}
+                        {att.isReleased && (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleUnrelease(att.id)}>
+                            <EyeOff size={13} /> Hide Result
                           </button>
                         )}
                         {att.status !== 'in_progress' && (
@@ -429,14 +476,86 @@ export default function AdminResults() {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={() => handleRelease(detail.attempt.id)}
+                    onClick={() => openReleaseModal(detail.attempt)}
                   >
                     <Send size={15} />
-                    Release Result to Employee
+                    Release Result to Candidate
                   </button>
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Granular Result Release Modal */}
+      {releaseModalTarget && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card" style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ fontSize: '1.22rem', margin: 0 }}>
+                Release Result — {releaseModalTarget.fullName}
+              </h2>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReleaseModalTarget(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginTop: 0, marginBottom: 14 }}>
+              Choose exactly what the candidate sees in <strong>My Results</strong> for{' '}
+              <strong>{releaseModalTarget.assessmentTitle}</strong>:
+            </p>
+
+            <form onSubmit={handleConfirmRelease}>
+              <div className="neu-panel-inset" style={{ padding: 14, display: 'grid', gap: 10, marginBottom: 14 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={relShowScore}
+                    onChange={(e) => setRelShowScore(e.target.checked)}
+                  />
+                  <span>Show Numeric Score &amp; Percentage ({releaseModalTarget.finalScore}/{releaseModalTarget.totalPossibleMarks} &mdash; {releaseModalTarget.percentage}%)</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={relShowPassFail}
+                    onChange={(e) => setRelShowPassFail(e.target.checked)}
+                  />
+                  <span>Show Pass / Did Not Pass Outcome Badge</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={relShowAnswers}
+                    onChange={(e) => setRelShowAnswers(e.target.checked)}
+                  />
+                  <span>Show Question-by-Question Answer Breakdown (Keep unchecked to protect test confidentiality)</span>
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Administrator Feedback Note (Optional)</label>
+                <textarea
+                  className="neu-textarea"
+                  style={{ minHeight: 75 }}
+                  placeholder="Optional note visible to the candidate alongside their result..."
+                  value={relFeedback}
+                  onChange={(e) => setRelFeedback(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setReleaseModalTarget(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Send size={14} /> Release Result
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

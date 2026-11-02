@@ -66,33 +66,30 @@ export default function AdminLayout() {
     {
       heading: 'Overview',
       items: [
-        { to: '/admin', label: 'Management Overview', icon: LayoutDashboard, end: true },
+        { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
       ],
     },
     {
-      heading: 'Workforce & Access',
+      heading: 'Candidates & Access',
       items: [
-        { to: '/admin/employees', label: 'Employees', icon: Users },
-        { to: '/admin/admins', label: 'Administrators', icon: Shield },
-        { to: '/admin/readiness', label: 'Project Readiness', icon: CheckSquare },
+        { to: '/admin/applications', label: 'Job Applications', icon: Briefcase },
+        { to: '/admin/employees', label: 'Candidates & Logins', icon: Users },
       ],
     },
     {
-      heading: 'Training & Assessment',
+      heading: 'Exams & Results Control',
       items: [
-        { to: '/admin/guidelines', label: 'Guidelines', icon: BookOpen },
-        { to: '/admin/assessments', label: 'Assessments', icon: ClipboardList },
+        { to: '/admin/assessments', label: 'Exams & Assignments', icon: ClipboardList },
         { to: '/admin/question-bank', label: 'Question Bank', icon: Database },
-        { to: '/admin/results', label: 'Results & Review', icon: FileCheck2 },
+        { to: '/admin/results', label: 'Submissions & Results', icon: FileCheck2 },
       ],
     },
     {
-      heading: 'Operations & Intake',
+      heading: 'Website & System',
       items: [
         { to: '/admin/company-info', label: 'Contact, Map & Info', icon: MapPin },
-        { to: '/admin/applications', label: 'Careers & Enquiries', icon: Briefcase },
-        { to: '/admin/announcements', label: 'Announcements & Feedback', icon: Megaphone },
-        { to: '/admin/activity', label: 'Audit & Activity Logs', icon: Activity },
+        { to: '/admin/admins', label: 'Administrators', icon: Shield },
+        { to: '/admin/activity', label: 'Audit Logs', icon: Activity },
       ],
     },
   ];

@@ -1,14 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  BookOpen,
   ClipboardCheck,
   Award,
-  CheckSquare,
-  Megaphone,
-  Bell,
-  MessageSquarePlus,
   LogOut,
   KeyRound,
   Globe,
@@ -27,7 +21,7 @@ import { usePortalTheme } from '../context/ThemeContext.jsx';
 import { apiRequest } from '../utils/api.js';
 
 function getInitials(name) {
-  return String(name || 'EV')
+  return String(name || 'CA')
     .trim()
     .split(/\s+/)
     .slice(0, 2)
@@ -43,7 +37,6 @@ export default function EmployeeLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const [activeAttempt, setActiveAttempt] = useState(null);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   const isCosmic = portalTheme === 'cosmic';
 
@@ -52,7 +45,6 @@ export default function EmployeeLayout() {
     try {
       const status = await apiRequest('/api/portal/status');
       setActiveAttempt(status.activeAttempt || null);
-      setUnreadCount(status.unreadNotifications || 0);
     } catch {
       // Ignore transient status fetch error while offline during an exam
     }
@@ -74,7 +66,7 @@ export default function EmployeeLayout() {
         className={isCosmic ? 'cosmic-auth-stage' : ''}
         style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        <div className="neu-card-compact">Verifying employee session...</div>
+        <div className="neu-card-compact">Verifying candidate session...</div>
       </div>
     );
   }
@@ -87,42 +79,14 @@ export default function EmployeeLayout() {
     return <Navigate to="/admin" replace />;
   }
 
-  // Enforce active assessment navigation lock inside portal (Section 6.5)
+  // Enforce active assessment navigation lock inside portal
   const expectedRunnerPath = activeAttempt ? `/portal/assessments/take/${activeAttempt.id}` : null;
   if (expectedRunnerPath && location.pathname !== expectedRunnerPath) {
     return <Navigate to={expectedRunnerPath} replace />;
   }
 
-  const navGroups = [
-    {
-      heading: 'Workspace',
-      items: [
-        { to: '/portal', label: 'Dashboard', icon: LayoutDashboard, end: true },
-        { to: '/portal/readiness', label: 'Project Readiness', icon: CheckSquare },
-      ],
-    },
-    {
-      heading: 'Preparation & Exams',
-      items: [
-        { to: '/portal/guidelines', label: 'Guideline Library', icon: BookOpen },
-        { to: '/portal/assessments', label: 'Assessments', icon: ClipboardCheck },
-        { to: '/portal/results', label: 'Released Results', icon: Award },
-      ],
-    },
-    {
-      heading: 'Updates & Support',
-      items: [
-        { to: '/portal/announcements', label: 'Announcements', icon: Megaphone },
-        {
-          to: '/portal/notifications',
-          label: 'Notifications',
-          icon: Bell,
-          badge: unreadCount > 0 ? unreadCount : null,
-        },
-        { to: '/portal/feedback', label: 'Feedback', icon: MessageSquarePlus },
-      ],
-    },
-  ];
+  const isExamsActive =
+    location.pathname === '/portal' || location.pathname.startsWith('/portal/assessments');
 
   const handleLogout = async () => {
     await logout();
@@ -131,12 +95,12 @@ export default function EmployeeLayout() {
 
   return (
     <div className={`portal-shell${isCosmic ? ' portal-theme-cosmic' : ''}`}>
-      <aside className={`portal-sidebar${sidebarOpen ? ' open' : ''}`} aria-label="Employee portal navigation">
+      <aside className={`portal-sidebar${sidebarOpen ? ' open' : ''}`} aria-label="Candidate exam portal navigation">
         <div
           style={{
             padding: '4px 10px 18px',
             borderBottom: '1px solid rgba(148, 163, 184, 0.16)',
-            marginBottom: 6,
+            marginBottom: 8,
           }}
         >
           {isCosmic ? (
@@ -148,56 +112,63 @@ export default function EmployeeLayout() {
                   fontWeight: 600,
                   letterSpacing: '0.14em',
                   color: '#9a9a9a',
-                  paddingLeft: 31,
+                  paddingLeft: 32,
                 }}
               >
-                EMPLOYEE PORTAL
+                EXAM PORTAL
               </span>
             </div>
           ) : (
-            <BrandLogo subtitle="EMPLOYEE PORTAL" compact />
+            <BrandLogo subtitle="EXAM PORTAL" compact />
           )}
         </div>
 
         {activeAttempt ? (
           <div className="neu-panel-inset" style={{ padding: 14, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                marginBottom: 8,
+              }}
+            >
               <Lock size={16} color="var(--accent-primary)" />
-              Active Assessment Lock
+              Active Exam Lock
             </div>
-            <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-              Normal portal navigation (including the Guideline Library) is restricted until you submit or complete your active assessment attempt.
+            <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.55 }}>
+              Portal navigation is locked while your timed assessment is in progress. Submit your exam to return to Results.
             </p>
           </div>
         ) : (
           <nav style={{ flex: 1 }}>
-            {navGroups.map((group) => (
-              <div key={group.heading} style={{ marginBottom: 6 }}>
-                <div className="sidebar-section-label">{group.heading}</div>
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      end={item.end}
-                      onClick={() => setSidebarOpen(false)}
-                      className={({ isActive }) => `sidebar-nav-link${isActive ? ' active' : ''}`}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                        <Icon size={16} />
-                        {item.label}
-                      </span>
-                      {item.badge && (
-                        <span className="badge badge-info" style={{ fontSize: '0.7rem', padding: '2px 7px' }}>
-                          {item.badge}
-                        </span>
-                      )}
-                    </NavLink>
-                  );
-                })}
-              </div>
-            ))}
+            <div style={{ marginBottom: 6 }}>
+              <div className="sidebar-section-label">Candidate Workspace</div>
+
+              <Link
+                to="/portal"
+                onClick={() => setSidebarOpen(false)}
+                className={`sidebar-nav-link${isExamsActive ? ' active' : ''}`}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                  <ClipboardCheck size={16} />
+                  Assigned Exams
+                </span>
+              </Link>
+
+              <NavLink
+                to="/portal/results"
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) => `sidebar-nav-link${isActive ? ' active' : ''}`}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                  <Award size={16} />
+                  My Results
+                </span>
+              </NavLink>
+            </div>
           </nav>
         )}
 
@@ -245,19 +216,16 @@ export default function EmployeeLayout() {
               type="button"
               className="btn btn-secondary btn-sm portal-mobile-toggle"
               onClick={() => setSidebarOpen((p) => !p)}
-              aria-label="Toggle employee sidebar"
+              aria-label="Toggle sidebar"
             >
               {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
-            <div className="user-avatar-chip" aria-hidden="true">
-              {getInitials(user.fullName)}
-            </div>
             <div>
-              <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', lineHeight: 1.25 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.96rem', color: 'var(--text-primary)' }}>
                 {user.fullName}
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {user.employeeCode} &bull; {user.email}
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                Candidate ID: <strong>{user.employeeCode}</strong> &bull; {user.email}
               </div>
             </div>
           </div>
@@ -265,46 +233,53 @@ export default function EmployeeLayout() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
-              className="theme-toggle-pill"
+              className="theme-switch-pill"
               onClick={togglePortalTheme}
-              title={isCosmic ? 'Switch to Calm Cream Daylight mode' : 'Switch to Obsidian Dark mode'}
+              title={isCosmic ? 'Switch to Calm Cream Daylight Mode' : 'Switch to Obsidian Dark Mode'}
             >
-              {isCosmic ? <Sun size={14} /> : <Moon size={14} />}
-              <span>{isCosmic ? 'Calm Cream' : 'Obsidian Dark'}</span>
+              {isCosmic ? (
+                <>
+                  <Sun size={14} />
+                  <span>Calm Cream</span>
+                </>
+              ) : (
+                <>
+                  <Moon size={14} />
+                  <span>Obsidian Dark</span>
+                </>
+              )}
             </button>
-            {activeAttempt ? (
-              <span className="badge badge-warn">Assessment In Progress</span>
-            ) : (
-              <span className="badge badge-success">Active Evaluator</span>
-            )}
+
+            <div className="avatar-badge" aria-hidden="true">
+              {getInitials(user.fullName)}
+            </div>
           </div>
         </header>
 
-        <div className="portal-content">
-          {user.mustChangePassword && !activeAttempt && (
-            <div className="alert alert-warn" role="alert">
-              <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
-              <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+        {user.mustChangePassword && !activeAttempt && (
+          <div style={{ padding: '16px 28px 0' }}>
+            <div className="alert alert-warn" style={{ marginBottom: 0, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <AlertTriangle size={18} />
                 <span>
-                  Your account is using an administrator-issued temporary password. Please update your password for account security.
+                  Please update your temporary password before starting your exam.
                 </span>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setPwdModalOpen(true)}
-                >
-                  Set New Password
-                </button>
               </div>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setPwdModalOpen(true)}>
+                Update Password
+              </button>
             </div>
-          )}
+          </div>
+        )}
+
+        <div className="portal-content">
           <div key={location.pathname} className="page-enter">
             <Outlet context={{ syncPortalStatus }} />
           </div>
         </div>
       </div>
 
-      <ChangePasswordModal isOpen={pwdModalOpen} onClose={() => setPwdModalOpen(false)} />
+      <ChangePasswordModal open={pwdModalOpen} onClose={() => setPwdModalOpen(false)} />
     </div>
   );
 }

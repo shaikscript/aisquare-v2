@@ -215,8 +215,51 @@ router.get('/overview', (_req, res) => {
 });
 
 /* ============================================================================
- * EMPLOYEE ACCOUNT MANAGEMENT (Section 7.3)
+ * CANDIDATE / EMPLOYEE ACCOUNT & EXAM ASSIGNMENT MANAGEMENT
  * ========================================================================== */
+
+function syncUserExamAssignments(userId, rawAssessmentIds, adminUser, replaceExisting = true) {
+  if (!Array.isArray(rawAssessmentIds)) return [];
+  const cleanIds = Array.from(
+    new Set(
+      rawAssessmentIds
+        .map((x) => parseInt(x, 10))
+        .filter((x) => !Number.isNaN(x) && x > 0)
+    )
+  );
+  const identity = adminIdentityString(adminUser);
+
+  const tx = db.transaction(() => {
+    if (replaceExisting) {
+      db.prepare('DELETE FROM exam_assignments WHERE user_id = ?').run(userId);
+    }
+    const ins = db.prepare(
+      `INSERT OR IGNORE INTO exam_assignments (assessment_id, user_id, assigned_by, assigned_by_identity, created_at)
+       VALUES (?, ?, ?, ?, datetime('now'))`
+    );
+    const validAssessments = db
+      .prepare("SELECT id FROM assessments WHERE status != 'archived'")
+      .all()
+      .map((r) => r.id);
+    const validSet = new Set(validAssessments);
+    for (const aid of cleanIds) {
+      if (validSet.has(aid)) {
+        ins.run(aid, userId, adminUser.id, identity);
+      }
+    }
+  });
+  tx();
+
+  return db
+    .prepare(
+      `SELECT ea.assessment_id AS id, a.title
+       FROM exam_assignments ea
+       JOIN assessments a ON a.id = ea.assessment_id
+       WHERE ea.user_id = ?
+       ORDER BY ea.id ASC`
+    )
+    .all(userId);
+}
 
 router.get('/employees', (req, res) => {
   const statusFilter = String(req.query.status || 'non_deleted');
@@ -250,6 +293,8 @@ router.get('/employees', (req, res) => {
          u.status,
          u.department_note AS departmentNote,
          u.must_change_password AS mustChangePassword,
+         u.restrict_to_assigned_exams AS restrictToAssignedExams,
+         u.source_application_id AS sourceApplicationId,
          u.last_login_at AS lastLoginAt,
          u.last_active_at AS lastActiveAt,
          u.created_at AS createdAt,
@@ -266,12 +311,32 @@ router.get('/employees', (req, res) => {
     )
     .all(...params);
 
+  const assignmentRows = db
+    .prepare(
+      `SELECT ea.user_id AS userId, ea.assessment_id AS assessmentId, a.title
+       FROM exam_assignments ea
+       JOIN assessments a ON a.id = ea.assessment_id`
+    )
+    .all();
+
+  const assignMap = new Map();
+  for (const ar of assignmentRows) {
+    if (!assignMap.has(ar.userId)) assignMap.set(ar.userId, []);
+    assignMap.get(ar.userId).push({ id: ar.assessmentId, title: ar.title });
+  }
+
   return res.json({
-    employees: rows.map((r) => ({
-      ...r,
-      mustChangePassword: Boolean(r.mustChangePassword),
-      recentlyConnected: r.activeConnections > 0,
-    })),
+    employees: rows.map((r) => {
+      const assignedExams = assignMap.get(r.id) || [];
+      return {
+        ...r,
+        mustChangePassword: Boolean(r.mustChangePassword),
+        restrictToAssignedExams: Boolean(r.restrictToAssignedExams),
+        recentlyConnected: r.activeConnections > 0,
+        assignedExams,
+        assignedExamIds: assignedExams.map((x) => x.id),
+      };
+    }),
   });
 });
 
@@ -414,12 +479,21 @@ router.post('/employees', async (req, res) => {
 
   const passwordHash = await hashPassword(password);
   const employeeCode = nextAccountCode('employee');
+  const hasAssignmentParam = Array.isArray(req.body?.assessmentIds);
+  const restrictFlag =
+    req.body?.restrictToAssignedExams !== undefined
+      ? req.body.restrictToAssignedExams
+        ? 1
+        : 0
+      : hasAssignmentParam
+      ? 1
+      : 0;
 
   const result = db
     .prepare(
       `INSERT INTO users
-        (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, ?, datetime('now'), datetime('now'))`
+        (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, restrict_to_assigned_exams, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, ?, ?, datetime('now'), datetime('now'))`
     )
     .run(
       employeeCode,
@@ -429,10 +503,14 @@ router.post('/employees', async (req, res) => {
       passwordHash,
       departmentNote || null,
       mustChangePassword,
+      restrictFlag,
       req.user.id
     );
 
   const newId = result.lastInsertRowid;
+  const assignedExams = hasAssignmentParam
+    ? syncUserExamAssignments(newId, req.body.assessmentIds, req.user, true)
+    : [];
 
   recordAudit({
     adminId: req.user.id,
@@ -440,7 +518,9 @@ router.post('/employees', async (req, res) => {
     action: 'EMPLOYEE_CREATED',
     entityType: 'employee',
     entityId: newId,
-    summary: `Created employee account ${employeeCode} for ${fullName} (${email}).`,
+    summary: `Created candidate login ${employeeCode} for ${fullName} (${email})${
+      assignedExams.length > 0 ? ` and assigned ${assignedExams.length} exam(s)` : ''
+    }.`,
     after: {
       employeeCode,
       fullName,
@@ -449,6 +529,7 @@ router.post('/employees', async (req, res) => {
       status: 'active',
       departmentNote: departmentNote || null,
       mustChangePassword: Boolean(mustChangePassword),
+      assignedExams: assignedExams.map((x) => x.title),
     },
   });
 
@@ -463,7 +544,43 @@ router.post('/employees', async (req, res) => {
       status: 'active',
       departmentNote: departmentNote || null,
       mustChangePassword: Boolean(mustChangePassword),
+      assignedExams,
+      assignedExamIds: assignedExams.map((x) => x.id),
     },
+  });
+});
+
+router.put('/employees/:id/exams', (req, res) => {
+  const empId = parseInt(req.params.id, 10);
+  const emp = db
+    .prepare("SELECT * FROM users WHERE id = ? AND role = 'employee' AND status != 'deleted'")
+    .get(empId);
+  if (!emp) {
+    return res.status(404).json({ error: 'Candidate account not found.' });
+  }
+
+  const assessmentIds = Array.isArray(req.body?.assessmentIds) ? req.body.assessmentIds : [];
+  db.prepare(
+    "UPDATE users SET restrict_to_assigned_exams = 1, updated_at = datetime('now') WHERE id = ?"
+  ).run(empId);
+
+  const assignedExams = syncUserExamAssignments(empId, assessmentIds, req.user, true);
+
+  recordAudit({
+    adminId: req.user.id,
+    adminIdentity: adminIdentityString(req.user),
+    action: 'CANDIDATE_EXAMS_UPDATED',
+    entityType: 'employee',
+    entityId: empId,
+    summary: `Updated assigned exams for ${emp.full_name} (${emp.employee_code}): ${
+      assignedExams.length > 0 ? assignedExams.map((x) => x.title).join(', ') : 'None assigned'
+    }.`,
+  });
+
+  return res.json({
+    success: true,
+    assignedExams,
+    assignedExamIds: assignedExams.map((x) => x.id),
   });
 });
 
@@ -608,9 +725,13 @@ router.post('/employees/bulk', async (req, res, next) => {
 
     const insertStmt = db.prepare(
       `INSERT INTO users
-        (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, ?, datetime('now'), datetime('now'))`
+        (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, restrict_to_assigned_exams, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, ?, ?, datetime('now'), datetime('now'))`
     );
+
+    const hasBatchExams = Array.isArray(req.body?.assessmentIds);
+    const batchExamIds = hasBatchExams ? req.body.assessmentIds : [];
+    const batchRestrict = hasBatchExams ? 1 : 0;
 
     const created = [];
     const runBatch = db.transaction((items) => {
@@ -624,10 +745,15 @@ router.post('/employees/bulk', async (req, res, next) => {
           p.passwordHash,
           p.departmentNote,
           mustChangePassword,
+          batchRestrict,
           req.user.id
         );
+        const createdId = info.lastInsertRowid;
+        const assignedExams = hasBatchExams
+          ? syncUserExamAssignments(createdId, batchExamIds, req.user, true)
+          : [];
         created.push({
-          id: info.lastInsertRowid,
+          id: createdId,
           employeeCode,
           fullName: p.fullName,
           email: p.email,
@@ -635,6 +761,7 @@ router.post('/employees/bulk', async (req, res, next) => {
           temporaryPassword: p.passwordPlain,
           departmentNote: p.departmentNote,
           mustChangePassword: Boolean(mustChangePassword),
+          assignedExams,
         });
       }
     });
@@ -1028,37 +1155,220 @@ router.get('/applications', (req, res) => {
   const statusFilter = String(req.query.status || 'all');
   let sql = `
     SELECT
-      id,
-      job_id AS jobId,
-      position_title AS positionTitle,
-      is_general_application AS isGeneralApplication,
-      full_name AS fullName,
-      email,
-      phone,
-      education_experience AS educationExperience,
-      resume_original_name AS resumeOriginalName,
-      resume_size_bytes AS resumeSizeBytes,
-      cover_letter AS coverLetter,
-      status,
-      admin_notes AS adminNotes,
-      created_at AS createdAt,
-      updated_at AS updatedAt
-    FROM job_applications
+      ja.id,
+      ja.job_id AS jobId,
+      ja.position_title AS positionTitle,
+      ja.is_general_application AS isGeneralApplication,
+      ja.full_name AS fullName,
+      ja.email,
+      ja.phone,
+      ja.education_experience AS educationExperience,
+      ja.resume_original_name AS resumeOriginalName,
+      ja.resume_size_bytes AS resumeSizeBytes,
+      ja.cover_letter AS coverLetter,
+      ja.status,
+      ja.admin_notes AS adminNotes,
+      ja.candidate_user_id AS candidateUserId,
+      ja.created_at AS createdAt,
+      ja.updated_at AS updatedAt,
+      u.id AS linkedUserId,
+      u.employee_code AS linkedEmployeeCode,
+      u.username AS linkedUsername,
+      u.status AS linkedUserStatus
+    FROM job_applications ja
+    LEFT JOIN users u
+      ON (u.id = ja.candidate_user_id OR (ja.candidate_user_id IS NULL AND LOWER(u.email) = LOWER(ja.email) AND u.role = 'employee'))
+     AND u.status != 'deleted'
   `;
   const params = [];
   if (['New', 'Under Review', 'Shortlisted', 'Selected', 'Rejected'].includes(statusFilter)) {
-    sql += ' WHERE status = ?';
+    sql += ' WHERE ja.status = ?';
     params.push(statusFilter);
   }
-  sql += ' ORDER BY created_at DESC';
+  sql += ' ORDER BY ja.created_at DESC';
 
   const applications = db.prepare(sql).all(...params);
+
+  const assignmentRows = db
+    .prepare(
+      `SELECT ea.user_id AS userId, ea.assessment_id AS assessmentId, a.title
+       FROM exam_assignments ea
+       JOIN assessments a ON a.id = ea.assessment_id`
+    )
+    .all();
+  const assignMap = new Map();
+  for (const ar of assignmentRows) {
+    if (!assignMap.has(ar.userId)) assignMap.set(ar.userId, []);
+    assignMap.get(ar.userId).push({ id: ar.assessmentId, title: ar.title });
+  }
+
   return res.json({
-    applications: applications.map((a) => ({
-      ...a,
-      isGeneralApplication: Boolean(a.isGeneralApplication),
-    })),
+    applications: applications.map((a) => {
+      const assignedExams = a.linkedUserId ? assignMap.get(a.linkedUserId) || [] : [];
+      return {
+        ...a,
+        isGeneralApplication: Boolean(a.isGeneralApplication),
+        candidateAccount: a.linkedUserId
+          ? {
+              id: a.linkedUserId,
+              employeeCode: a.linkedEmployeeCode,
+              username: a.linkedUsername,
+              status: a.linkedUserStatus,
+              assignedExams,
+              assignedExamIds: assignedExams.map((x) => x.id),
+            }
+          : null,
+      };
+    }),
   });
+});
+
+/**
+ * POST /api/admin/applications/:id/issue-exam-login
+ * 1-Click Admin Control: Issues Candidate Portal Login (or updates existing candidate)
+ * directly from a Website Job Application and assigns the selected Exam(s).
+ */
+router.post('/applications/:id/issue-exam-login', async (req, res, next) => {
+  try {
+    const appId = parseInt(req.params.id, 10);
+    const appRow = db.prepare('SELECT * FROM job_applications WHERE id = ?').get(appId);
+    if (!appRow) {
+      return res.status(404).json({ error: 'Application not found.' });
+    }
+
+    const assessmentIds = Array.isArray(req.body?.assessmentIds) ? req.body.assessmentIds : [];
+    const customPassword = String(req.body?.password || '').trim();
+    const customUsername = String(req.body?.username || '').trim().toLowerCase();
+    const nextAppStatus = ['New', 'Under Review', 'Shortlisted', 'Selected', 'Rejected'].includes(
+      req.body?.applicationStatus
+    )
+      ? req.body.applicationStatus
+      : appRow.status === 'New' || appRow.status === 'Under Review'
+      ? 'Shortlisted'
+      : appRow.status;
+
+    const existingUser = db
+      .prepare(
+        `SELECT * FROM users
+         WHERE (id = ? OR LOWER(email) = LOWER(?))
+           AND role = 'employee'
+           AND status != 'deleted'
+         LIMIT 1`
+      )
+      .get(appRow.candidate_user_id || -1, appRow.email);
+
+    let userId;
+    let employeeCode;
+    let username;
+    let issuedPassword = null;
+    let isNewAccount = false;
+
+    if (existingUser) {
+      userId = existingUser.id;
+      employeeCode = existingUser.employee_code;
+      username = existingUser.username;
+
+      if (customPassword) {
+        if (
+          customPassword.length < 8 ||
+          !/[A-Za-z]/.test(customPassword) ||
+          !/[0-9]/.test(customPassword)
+        ) {
+          return res.status(400).json({
+            error: 'Password must be at least 8 characters and contain both letters and numbers.',
+          });
+        }
+        const newHash = await hashPassword(customPassword);
+        db.prepare(
+          "UPDATE users SET password_hash = ?, status = 'active', restrict_to_assigned_exams = 1, updated_at = datetime('now') WHERE id = ?"
+        ).run(newHash, userId);
+        issuedPassword = customPassword;
+      } else {
+        db.prepare(
+          "UPDATE users SET status = 'active', restrict_to_assigned_exams = 1, updated_at = datetime('now') WHERE id = ?"
+        ).run(userId);
+      }
+    } else {
+      isNewAccount = true;
+      const passwordPlain = customPassword || generateStrongTempPassword();
+      if (
+        passwordPlain.length < 8 ||
+        !/[A-Za-z]/.test(passwordPlain) ||
+        !/[0-9]/.test(passwordPlain)
+      ) {
+        return res.status(400).json({
+          error: 'Password must be at least 8 characters and contain both letters and numbers.',
+        });
+      }
+
+      const takenRows = db.prepare('SELECT LOWER(username) AS username FROM users').all();
+      const takenUsernames = new Set(takenRows.map((u) => u.username));
+      const baseUser = buildBaseUsername(customUsername, appRow.email, appRow.full_name);
+      username = baseUser;
+      let suffix = 2;
+      while (takenUsernames.has(username)) {
+        username = `${baseUser.slice(0, 34)}${suffix}`;
+        suffix += 1;
+      }
+
+      const passwordHash = await hashPassword(passwordPlain);
+      employeeCode = nextAccountCode('employee');
+      const mustChange = req.body?.mustChangePassword === true ? 1 : 0;
+
+      const ins = db
+        .prepare(
+          `INSERT INTO users
+            (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, restrict_to_assigned_exams, source_application_id, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, 1, ?, ?, datetime('now'), datetime('now'))`
+        )
+        .run(
+          employeeCode,
+          appRow.full_name,
+          appRow.email.toLowerCase(),
+          username,
+          passwordHash,
+          `Applicant: ${appRow.position_title}`,
+          mustChange,
+          appRow.id,
+          req.user.id
+        );
+      userId = ins.lastInsertRowid;
+      issuedPassword = passwordPlain;
+    }
+
+    const assignedExams = syncUserExamAssignments(userId, assessmentIds, req.user, true);
+
+    db.prepare(
+      `UPDATE job_applications
+       SET candidate_user_id = ?, status = ?, updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(userId, nextAppStatus, appId);
+
+    recordAudit({
+      adminId: req.user.id,
+      adminIdentity: adminIdentityString(req.user),
+      action: isNewAccount ? 'APPLICANT_EXAM_LOGIN_ISSUED' : 'APPLICANT_EXAMS_UPDATED',
+      entityType: 'job_application',
+      entityId: appId,
+      summary: `${isNewAccount ? 'Issued exam login' : 'Updated exam assignments'} (${employeeCode}) for applicant ${appRow.full_name} with ${assignedExams.length} assigned exam(s).`,
+    });
+
+    return res.status(isNewAccount ? 201 : 200).json({
+      success: true,
+      isNewAccount,
+      credentials: {
+        userId,
+        employeeCode,
+        fullName: appRow.full_name,
+        email: appRow.email.toLowerCase(),
+        username,
+        password: issuedPassword,
+        assignedExams,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 router.patch('/applications/:id', (req, res) => {

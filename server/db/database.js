@@ -32,6 +32,22 @@ db.pragma('foreign_keys = ON');
 const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schemaSql);
 
+// Safe idempotent column migrations for v2 Candidate Exam & Result Control
+function ensureColumn(tableName, columnName, definitionSql) {
+  const cols = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  if (!cols.some((c) => c.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definitionSql}`);
+  }
+}
+
+ensureColumn('users', 'restrict_to_assigned_exams', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('users', 'source_application_id', 'INTEGER');
+ensureColumn('job_applications', 'candidate_user_id', 'INTEGER');
+ensureColumn('assessments', 'assignment_mode', "TEXT NOT NULL DEFAULT 'all_active'");
+ensureColumn('assessment_attempts', 'release_show_score', 'INTEGER NOT NULL DEFAULT 1');
+ensureColumn('assessment_attempts', 'release_show_pass_fail', 'INTEGER NOT NULL DEFAULT 1');
+ensureColumn('assessment_attempts', 'release_show_answers', 'INTEGER NOT NULL DEFAULT 1');
+
 export function ensureBootstrapState() {
   const adminCountRow = db
     .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status != 'deleted'")

@@ -1,9 +1,9 @@
 {
   "name": "ai-square-v2",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
-  "description": "AI Square IT Solutions v2 \u2014 Minimal Starfield Public Site, Aurora Auth & Dual-Theme Portals",
+  "description": "AI Square IT Solutions \u2014 Corporate Website, Employee Portal, and Admin Workforce Management Platform",
   "engines": {
     "node": ">=20.0.0"
   },

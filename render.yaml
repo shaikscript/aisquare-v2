@@ -1,8 +1,10 @@
 services:
   - type: web
-    name: ai-square-v2
-    runtime: docker
+    name: ai-square-it-solutions
+    runtime: node
     plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

@@ -80,27 +80,27 @@ export default function EmployeeLoginPage() {
           </Link>
 
           <div className="aurora-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
-            <h2 className="aurora-hero-title">Evaluator Space</h2>
+            <h2 className="aurora-hero-title">Exam Portal</h2>
             <p className="aurora-hero-desc">
-              Follow these 3 structured phases inside your AI evaluation workspace.
+              Complete your assigned aptitude &amp; AI evaluation assessment.
             </p>
           </div>
 
           <div className="aurora-steps-stack">
             <AuroraStepItem
               number="1"
-              text="Sign in with your evaluator identity"
+              text="Sign in with Admin-issued login"
               active
               delay="0.42s"
             />
             <AuroraStepItem
               number="2"
-              text="Calibrate on guidelines & rubrics"
+              text="Complete your assigned timed exam"
               delay="0.54s"
             />
             <AuroraStepItem
               number="3"
-              text="Complete assessments & readiness"
+              text="View results released by Admin"
               delay="0.66s"
             />
           </div>
@@ -115,14 +115,14 @@ export default function EmployeeLoginPage() {
               &larr; Back to AI Square
             </Link>
             <Link to="/careers" className="aurora-top-back">
-              Evaluator Careers &rarr;
+              Apply on Careers &rarr;
             </Link>
           </div>
 
           <div style={{ marginBottom: 28 }}>
-            <h1 className="aurora-form-heading">Employee Sign In</h1>
+            <h1 className="aurora-form-heading">Candidate Sign In</h1>
             <p className="aurora-form-sub">
-              Input your administrator-issued evaluator details to enter your workspace.
+              Enter the login credentials issued by AI Square Administration to start your assigned exam or check released results.
             </p>
           </div>
 

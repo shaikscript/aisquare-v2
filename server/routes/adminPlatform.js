@@ -17,6 +17,7 @@ import {
   recomputeSingleProjectReadiness,
   syncAttemptTimingAndExpiry,
 } from '../utils/assessmentEngine.js';
+import { EXAM_TEMPLATE_PACK } from '../utils/examTemplatePack.js';
 
 const router = express.Router();
 router.use(requireRole('admin'));
@@ -700,7 +701,8 @@ router.get('/assessments', (_req, res) => {
          p.name AS projectName,
          p.code AS projectCode,
          (SELECT COUNT(*) FROM assessment_questions aq WHERE aq.assessment_id = a.id) AS linkedQuestionsCount,
-         (SELECT COUNT(*) FROM assessment_attempts att WHERE att.assessment_id = a.id) AS attemptsCount
+         (SELECT COUNT(*) FROM assessment_attempts att WHERE att.assessment_id = a.id) AS attemptsCount,
+         (SELECT COUNT(*) FROM exam_assignments ea WHERE ea.assessment_id = a.id) AS assignedCandidatesCount
        FROM assessments a
        LEFT JOIN projects p ON p.id = a.project_id
        ORDER BY a.updated_at DESC, a.id DESC`
@@ -715,6 +717,7 @@ router.get('/assessments', (_req, res) => {
       projectCode: a.projectCode,
       projectTaskRef: a.project_task_ref,
       status: a.status,
+      assignmentMode: a.assignment_mode || 'all_active',
       availableFrom: a.available_from,
       availableUntil: a.available_until,
       isTimed: Boolean(a.is_timed),
@@ -727,6 +730,7 @@ router.get('/assessments', (_req, res) => {
       version: a.version,
       linkedQuestionsCount: a.linkedQuestionsCount,
       attemptsCount: a.attemptsCount,
+      assignedCandidatesCount: a.assignedCandidatesCount,
       updatedAt: a.updated_at,
     }));
 
@@ -763,6 +767,16 @@ router.get('/assessments/:id', (req, res) => {
       isReusable: Boolean(q.isReusable),
     }));
 
+  const assignedUsers = db
+    .prepare(
+      `SELECT u.id, u.employee_code AS employeeCode, u.full_name AS fullName, u.email
+       FROM exam_assignments ea
+       JOIN users u ON u.id = ea.user_id
+       WHERE ea.assessment_id = ? AND u.status != 'deleted'
+       ORDER BY u.full_name ASC`
+    )
+    .all(aid);
+
   return res.json({
     assessment: {
       id: a.id,
@@ -771,6 +785,7 @@ router.get('/assessments/:id', (req, res) => {
       projectId: a.project_id,
       projectTaskRef: a.project_task_ref,
       status: a.status,
+      assignmentMode: a.assignment_mode || 'all_active',
       availableFrom: a.available_from,
       availableUntil: a.available_until,
       isTimed: Boolean(a.is_timed),
@@ -783,7 +798,52 @@ router.get('/assessments/:id', (req, res) => {
       version: a.version,
     },
     questions,
+    assignedUsers,
+    assignedUserIds: assignedUsers.map((u) => u.id),
   });
+});
+
+router.put('/assessments/:id/assignments', (req, res) => {
+  const aid = parseInt(req.params.id, 10);
+  const a = db.prepare('SELECT * FROM assessments WHERE id = ?').get(aid);
+  if (!a) return res.status(404).json({ error: 'Assessment not found.' });
+
+  const userIds = Array.isArray(req.body?.userIds)
+    ? Array.from(
+        new Set(req.body.userIds.map((x) => parseInt(x, 10)).filter((x) => !Number.isNaN(x) && x > 0))
+      )
+    : [];
+  const nextMode =
+    req.body?.assignmentMode === 'assigned_only' || req.body?.assignmentMode === 'all_active'
+      ? req.body.assignmentMode
+      : 'assigned_only';
+  const identity = adminIdentity(req.user);
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      "UPDATE assessments SET assignment_mode = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(nextMode, aid);
+    db.prepare('DELETE FROM exam_assignments WHERE assessment_id = ?').run(aid);
+    const ins = db.prepare(
+      `INSERT OR IGNORE INTO exam_assignments (assessment_id, user_id, assigned_by, assigned_by_identity, created_at)
+       VALUES (?, ?, ?, ?, datetime('now'))`
+    );
+    for (const uid of userIds) {
+      ins.run(aid, uid, req.user.id, identity);
+    }
+  });
+  tx();
+
+  recordAudit({
+    adminId: req.user.id,
+    adminIdentity: identity,
+    action: 'EXAM_ASSIGNMENTS_UPDATED',
+    entityType: 'assessment',
+    entityId: aid,
+    summary: `Updated candidate assignments for exam "${a.title}" (${userIds.length} assigned, mode: ${nextMode}).`,
+  });
+
+  return res.json({ success: true, assignedCount: userIds.length, assignmentMode: nextMode });
 });
 
 function saveAssessmentWithQuestions(req, existing = null) {
@@ -803,6 +863,11 @@ function saveAssessmentWithQuestions(req, existing = null) {
   const randomSampleCount =
     selectionMode === 'random_pool' ? Math.max(1, parseInt(b.randomSampleCount || 5, 10)) : null;
   const randomPoolProjectRef = String(b.randomPoolTag || b.randomPoolProjectRef || '').trim() || null;
+  const assignmentMode =
+    b.assignmentMode === 'assigned_only' || b.assignmentMode === 'all_active'
+      ? b.assignmentMode
+      : existing?.assignment_mode || 'all_active';
+  const hasAssignedUserIds = Array.isArray(b.assignedUserIds);
 
   if (!title || title.length < 3) {
     const err = new Error('Assessment title (at least 3 characters) is required.');
@@ -834,12 +899,12 @@ function saveAssessmentWithQuestions(req, existing = null) {
       const ins = db
         .prepare(
           `INSERT INTO assessments (
-             title, instructions, project_id, project_task_ref, status,
+             title, instructions, project_id, project_task_ref, status, assignment_mode,
              available_from, available_until, is_timed, time_limit_minutes,
              pause_on_disconnect, passing_percentage, selection_mode,
              random_sample_count, random_pool_project_ref, version,
              created_by, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`
         )
         .run(
           title,
@@ -847,6 +912,7 @@ function saveAssessmentWithQuestions(req, existing = null) {
           projectId,
           projectTaskRef,
           status,
+          assignmentMode,
           availableFrom,
           availableUntil,
           isTimed,
@@ -863,7 +929,7 @@ function saveAssessmentWithQuestions(req, existing = null) {
       db.prepare(
         `UPDATE assessments
          SET title = ?, instructions = ?, project_id = ?, project_task_ref = ?,
-             status = ?, available_from = ?, available_until = ?, is_timed = ?,
+             status = ?, assignment_mode = ?, available_from = ?, available_until = ?, is_timed = ?,
              time_limit_minutes = ?, pause_on_disconnect = ?, passing_percentage = ?,
              selection_mode = ?, random_sample_count = ?, random_pool_project_ref = ?,
              version = version + 1, updated_at = datetime('now')
@@ -874,6 +940,7 @@ function saveAssessmentWithQuestions(req, existing = null) {
         projectId,
         projectTaskRef,
         status,
+        assignmentMode,
         availableFrom,
         availableUntil,
         isTimed,
@@ -886,6 +953,21 @@ function saveAssessmentWithQuestions(req, existing = null) {
         assessmentId
       );
       db.prepare('DELETE FROM assessment_questions WHERE assessment_id = ?').run(assessmentId);
+    }
+
+    if (hasAssignedUserIds) {
+      db.prepare('DELETE FROM exam_assignments WHERE assessment_id = ?').run(assessmentId);
+      const insAssign = db.prepare(
+        `INSERT OR IGNORE INTO exam_assignments (assessment_id, user_id, assigned_by, assigned_by_identity, created_at)
+         VALUES (?, ?, ?, ?, datetime('now'))`
+      );
+      const identity = adminIdentity(req.user);
+      for (const rawUid of b.assignedUserIds) {
+        const uid = parseInt(rawUid, 10);
+        if (!Number.isNaN(uid) && uid > 0) {
+          insAssign.run(assessmentId, uid, req.user.id, identity);
+        }
+      }
     }
 
     const linkStmt = db.prepare(
@@ -1063,6 +1145,91 @@ router.post('/assessments/:id/duplicate', (req, res) => {
   });
 
   return res.status(201).json({ success: true, assessmentId: copyId });
+});
+
+router.post('/assessments/seed-templates', (req, res) => {
+  const existingTitles = new Set(
+    db.prepare('SELECT title FROM assessments').all().map((r) => r.title.toLowerCase())
+  );
+
+  let createdExams = 0;
+  let createdQuestions = 0;
+
+  const insertQ = db.prepare(`
+    INSERT INTO question_bank (
+      question_type, prompt, scenario_context, options_json, correct_answer,
+      scoring_rubric, marks, explanation, project_ref, is_reusable, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?)
+  `);
+
+  const insertA = db.prepare(`
+    INSERT INTO assessments (
+      title, instructions, project_id, project_task_ref, status, is_timed,
+      time_limit_minutes, pause_on_disconnect, passing_percentage, selection_mode,
+      assignment_mode, created_by
+    ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, 'fixed', ?, ?)
+  `);
+
+  const insertLink = db.prepare(`
+    INSERT INTO assessment_questions (assessment_id, question_id, sort_order, marks_override)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const tx = db.transaction(() => {
+    for (const tpl of EXAM_TEMPLATE_PACK) {
+      if (existingTitles.has(tpl.title.toLowerCase())) continue;
+
+      const aRes = insertA.run(
+        tpl.title,
+        tpl.instructions,
+        tpl.projectTaskRef,
+        tpl.status,
+        tpl.isTimed ? 1 : 0,
+        tpl.timeLimitMinutes,
+        tpl.pauseOnDisconnect ? 1 : 0,
+        tpl.passingPercentage,
+        tpl.assignmentMode || 'assigned_only',
+        req.user.id
+      );
+      const assessmentId = Number(aRes.lastInsertRowid);
+      createdExams += 1;
+
+      tpl.questions.forEach((q, idx) => {
+        const qRes = insertQ.run(
+          q.questionType,
+          q.prompt,
+          q.scenarioContext || null,
+          q.options && q.options.length > 0 ? JSON.stringify(q.options) : null,
+          q.correctAnswer ?? null,
+          q.scoringRubric || null,
+          q.defaultMarks || 1,
+          q.explanation || null,
+          q.topicTag || tpl.projectTaskRef,
+          req.user.id
+        );
+        const qId = Number(qRes.lastInsertRowid);
+        createdQuestions += 1;
+        insertLink.run(assessmentId, qId, idx + 1, q.defaultMarks || 1);
+      });
+    }
+  });
+
+  tx();
+
+  recordAudit({
+    adminId: req.user.id,
+    adminIdentity: adminIdentity(req.user),
+    action: 'EXAM_TEMPLATES_SEEDED',
+    entityType: 'assessment',
+    summary: `Loaded ${createdExams} AI evaluation & aptitude template exam(s) (${createdQuestions} questions)`,
+    after: { createdExams, createdQuestions },
+  });
+
+  return res.status(201).json({
+    success: true,
+    createdExams,
+    createdQuestions,
+  });
 });
 
 /* ============================================================================
@@ -1368,17 +1535,29 @@ router.post('/attempts/:id/release', (req, res) => {
     });
   }
 
+  const showScore = req.body?.showScore !== false ? 1 : 0;
+  const showPassFail = req.body?.showPassFail !== false ? 1 : 0;
+  const showAnswers = req.body?.showAnswers !== false ? 1 : 0;
+  const overallComment =
+    req.body?.overallComment !== undefined
+      ? String(req.body.overallComment || '').trim() || null
+      : recalculated.reviewer_overall_comment;
+
   const identity = adminIdentity(req.user);
 
   db.prepare(
     `UPDATE assessment_attempts
      SET is_released = 1,
+         release_show_score = ?,
+         release_show_pass_fail = ?,
+         release_show_answers = ?,
+         reviewer_overall_comment = ?,
          released_by = ?,
          released_by_identity = ?,
          released_at = datetime('now'),
          status_detail = CASE WHEN status = 'expired' THEN 'Not Attempted — Time Expired' ELSE 'Result Released' END
      WHERE id = ?`
-  ).run(req.user.id, identity, attemptId);
+  ).run(showScore, showPassFail, showAnswers, overallComment, req.user.id, identity, attemptId);
 
   const assessment = db
     .prepare('SELECT title FROM assessments WHERE id = ?')
@@ -1395,6 +1574,9 @@ router.post('/attempts/:id/release', (req, res) => {
       finalScore: recalculated.final_score,
       percentage: recalculated.percentage,
       passed: Boolean(recalculated.passed),
+      showScore: Boolean(showScore),
+      showPassFail: Boolean(showPassFail),
+      showAnswers: Boolean(showAnswers),
       releasedBy: identity,
     },
   });
@@ -1412,6 +1594,31 @@ router.post('/attempts/:id/release', (req, res) => {
     recalculated.assessment_id,
     identity
   );
+
+  return res.json({ success: true });
+});
+
+router.post('/attempts/:id/unrelease', (req, res) => {
+  const attemptId = parseInt(req.params.id, 10);
+  const existing = db.prepare('SELECT * FROM assessment_attempts WHERE id = ?').get(attemptId);
+  if (!existing) return res.status(404).json({ error: 'Attempt not found.' });
+
+  const identity = adminIdentity(req.user);
+  db.prepare(
+    `UPDATE assessment_attempts
+     SET is_released = 0,
+         status_detail = 'Submitted — Pending Administrator Release'
+     WHERE id = ?`
+  ).run(attemptId);
+
+  recordAudit({
+    adminId: req.user.id,
+    adminIdentity: identity,
+    action: 'RESULT_UNRELEASED',
+    entityType: 'assessment_attempt',
+    entityId: attemptId,
+    summary: `Withdrew / hid released result for Attempt #${attemptId} from candidate view.`,
+  });
 
   return res.json({ success: true });
 });

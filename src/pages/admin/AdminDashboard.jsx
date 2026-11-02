@@ -85,47 +85,47 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Primary KPI Grid (8 Live Cards across all modules) */}
+      {/* Primary KPI Grid */}
       <div className="grid-4" style={{ marginBottom: 20 }}>
         <div className="neu-card-compact kpi-card animate-fade-up stagger-1">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>ACTIVE EMPLOYEES</span>
-            <div className="kpi-icon-box"><Users size={17} /></div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>JOB APPLICATIONS</span>
+            <div className="kpi-icon-box"><Briefcase size={17} /></div>
           </div>
-          <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{employees.active}</div>
+          <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{careers.totalApplications}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '6px 0 8px' }}>
-            {employees.recentlyConnected} connected (15m) &bull; {employees.deactivated} deactivated
+            {careers.newApplications} unreviewed &bull; {careers.publishedJobs} open roles
           </div>
-          <Link to="/admin/employees" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Manage Workforce &rarr;</Link>
+          <Link to="/admin/applications" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Issue Login &amp; Assign Exam &rarr;</Link>
         </div>
 
         <div className="neu-card-compact kpi-card animate-fade-up stagger-2">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>PUBLISHED GUIDELINES</span>
-            <div className="kpi-icon-box"><BookOpen size={17} /></div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>CANDIDATE LOGINS</span>
+            <div className="kpi-icon-box"><Users size={17} /></div>
           </div>
-          <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{guidelines.published}</div>
+          <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{employees.active}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '6px 0 8px' }}>
-            {guidelines.total} total guidelines stored
+            {employees.recentlyConnected} active in portal &bull; {employees.deactivated} deactivated
           </div>
-          <Link to="/admin/guidelines" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Manage Library &rarr;</Link>
+          <Link to="/admin/employees" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Create Login / Assign Exam &rarr;</Link>
         </div>
 
         <div className="neu-card-compact kpi-card animate-fade-up stagger-3">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>ASSESSMENTS &amp; BANK</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>EXAMS &amp; QUESTION BANK</span>
             <div className="kpi-icon-box"><ClipboardList size={17} /></div>
           </div>
           <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{assessments.published}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '6px 0 8px' }}>
             {assessments.reusableQuestions} reusable bank questions
           </div>
-          <Link to="/admin/assessments" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Configure Assessments &rarr;</Link>
+          <Link to="/admin/assessments" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Manage Exams &amp; Assignments &rarr;</Link>
         </div>
 
         <div className="neu-card-compact kpi-card animate-fade-up stagger-4">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>PENDING REVIEWS / RELEASE</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>GRADING &amp; RESULT RELEASE</span>
             <div className="kpi-icon-box"><FileCheck2 size={17} /></div>
           </div>
           <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>

@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Sparkles,
   FileSpreadsheet,
+  ClipboardCheck,
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api.js';
 
@@ -162,7 +163,8 @@ export default function AdminEmployees() {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newDeptNote, setNewDeptNote] = useState('');
-  const [mustChangePwd, setMustChangePwd] = useState(true);
+  const [mustChangePwd, setMustChangePwd] = useState(false);
+  const [createExamIds, setCreateExamIds] = useState([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -170,10 +172,17 @@ export default function AdminEmployees() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [bulkDefaultNote, setBulkDefaultNote] = useState('');
-  const [bulkMustChangePwd, setBulkMustChangePwd] = useState(true);
+  const [bulkMustChangePwd, setBulkMustChangePwd] = useState(false);
+  const [bulkExamIds, setBulkExamIds] = useState([]);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const csvFileInputRef = useRef(null);
+
+  // Available Exams + Per-Candidate Assign Modal
+  const [availableExams, setAvailableExams] = useState([]);
+  const [assignModalTarget, setAssignModalTarget] = useState(null);
+  const [assignModalIds, setAssignModalIds] = useState([]);
+  const [savingAssign, setSavingAssign] = useState(false);
 
   // Inspect / Edit Modal
   const [inspectData, setInspectData] = useState(null);
@@ -201,8 +210,12 @@ export default function AdminEmployees() {
       const params = new URLSearchParams();
       params.set('status', statusFilter);
       if (searchQuery.trim()) params.set('q', searchQuery.trim());
-      const res = await apiRequest(`/api/admin/employees?${params.toString()}`);
+      const [res, examsRes] = await Promise.all([
+        apiRequest(`/api/admin/employees?${params.toString()}`),
+        apiRequest('/api/admin/assessments'),
+      ]);
       setEmployees(res.employees || []);
+      setAvailableExams((examsRes.assessments || []).filter((x) => x.status !== 'archived'));
     } catch (err) {
       setBanner({ type: 'error', text: err.message || 'Unable to load employee accounts.' });
     } finally {
@@ -220,7 +233,8 @@ export default function AdminEmployees() {
     setNewUsername('');
     setNewPassword(generateRandomPassword());
     setNewDeptNote('');
-    setMustChangePwd(true);
+    setMustChangePwd(false);
+    setCreateExamIds([]);
     setCreateError('');
     setCreateOpen(true);
   };
@@ -228,9 +242,38 @@ export default function AdminEmployees() {
   const handleOpenBulk = () => {
     setBulkText('');
     setBulkDefaultNote('');
-    setBulkMustChangePwd(true);
+    setBulkMustChangePwd(false);
+    setBulkExamIds([]);
     setBulkError('');
     setBulkOpen(true);
+  };
+
+  const toggleExamInList = (setter, examId) => {
+    setter((prev) =>
+      prev.includes(examId) ? prev.filter((id) => id !== examId) : [...prev, examId]
+    );
+  };
+
+  const handleSaveCandidateExams = async (e) => {
+    e.preventDefault();
+    if (!assignModalTarget) return;
+    setSavingAssign(true);
+    try {
+      await apiRequest(`/api/admin/employees/${assignModalTarget.id}/exams`, {
+        method: 'PUT',
+        body: { assessmentIds: assignModalIds },
+      });
+      setBanner({
+        type: 'success',
+        text: `Updated assigned exams for ${assignModalTarget.fullName} (${assignModalTarget.employeeCode}).`,
+      });
+      setAssignModalTarget(null);
+      loadEmployees();
+    } catch (err) {
+      setBanner({ type: 'error', text: err.message || 'Unable to save exam assignments.' });
+    } finally {
+      setSavingAssign(false);
+    }
   };
 
   const handleCsvFileUpload = (e) => {
@@ -344,6 +387,8 @@ export default function AdminEmployees() {
           password: pwdUsed,
           departmentNote: newDeptNote,
           mustChangePassword: mustChangePwd,
+          restrictToAssignedExams: true,
+          assessmentIds: createExamIds,
         },
       });
       setCreateOpen(false);
@@ -382,6 +427,7 @@ export default function AdminEmployees() {
           rows: parsedBulkRows,
           defaultDepartmentNote: bulkDefaultNote,
           mustChangePassword: bulkMustChangePwd,
+          assessmentIds: bulkExamIds,
         },
       });
 
@@ -531,29 +577,25 @@ export default function AdminEmployees() {
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>Employee Account Management</h1>
+          <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>Candidates &amp; Exam Logins</h1>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.92rem' }}>
-            Onboard evaluators individually or in bulk, manage access, reset credentials, and export roster sheets.
+            Create candidate logins manually or via CSV, assign specific aptitude/evaluation exams, and manage access.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {employees.length > 0 && (
             <button type="button" className="btn btn-secondary btn-sm" onClick={handleExportRosterCsv}>
               <Download size={15} />
-              Export Roster CSV
+              Export CSV
             </button>
           )}
-          <Link to="/admin/admins" className="btn btn-secondary btn-sm">
-            <Shield size={15} />
-            Manage Admins
-          </Link>
           <button type="button" className="btn btn-secondary" onClick={handleOpenBulk}>
             <Users size={16} />
-            Bulk Onboard (CSV / Paste)
+            Bulk Create &amp; Assign Exam
           </button>
           <button type="button" className="btn btn-primary" onClick={handleOpenCreate}>
             <UserPlus size={17} />
-            Create Employee
+            Create Login &amp; Assign Exam
           </button>
         </div>
       </div>
@@ -728,7 +770,7 @@ export default function AdminEmployees() {
                   <th>Employee</th>
                   <th>Username</th>
                   <th>Status</th>
-                  <th>Portal Presence</th>
+                  <th>Assigned Exams</th>
                   <th>Last Sign-In (UTC)</th>
                   <th>Actions</th>
                 </tr>
@@ -741,7 +783,7 @@ export default function AdminEmployees() {
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{emp.fullName}</div>
                       <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{emp.email}</div>
                       {emp.departmentNote && (
-                        <div style={{ fontSize: '0.78rem', color: 'var(--accent-primary)' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                           {emp.departmentNote}
                         </div>
                       )}
@@ -753,10 +795,18 @@ export default function AdminEmployees() {
                       {emp.status === 'deleted' && <span className="badge badge-danger">Deleted</span>}
                     </td>
                     <td>
-                      {emp.recentlyConnected ? (
-                        <span className="badge badge-info">Recently Connected</span>
+                      {emp.assignedExams?.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {emp.assignedExams.map((ex) => (
+                            <span key={ex.id} className="badge badge-info">
+                              {ex.title}
+                            </span>
+                          ))}
+                        </div>
                       ) : (
-                        <span style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>Offline / Idle</span>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                          None assigned
+                        </span>
                       )}
                     </td>
                     <td style={{ fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
@@ -764,11 +814,24 @@ export default function AdminEmployees() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {emp.status !== 'deleted' && (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => {
+                              setAssignModalTarget(emp);
+                              setAssignModalIds(emp.assignedExamIds || []);
+                            }}
+                          >
+                            <ClipboardCheck size={14} />
+                            Assign Exams ({emp.assignedExams?.length || 0})
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
                           onClick={() => handleInspect(emp.id)}
-                          title="Inspect or edit employee record"
+                          title="Inspect or edit candidate record"
                         >
                           <Eye size={14} />
                           Details
@@ -915,6 +978,24 @@ export default function AdminEmployees() {
                 />
               </div>
 
+              {availableExams.length > 0 && (
+                <div className="form-group">
+                  <label className="form-label">Assign Exam(s) to Entire Batch (Optional)</label>
+                  <div className="neu-panel-inset" style={{ padding: 10, maxHeight: 150, overflowY: 'auto', display: 'grid', gap: 6 }}>
+                    {availableExams.map((ex) => (
+                      <label key={ex.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.86rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={bulkExamIds.includes(ex.id)}
+                          onChange={() => toggleExamInList(setBulkExamIds, ex.id)}
+                        />
+                        <span>{ex.title} ({ex.status})</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <label
                 style={{
                   display: 'flex',
@@ -930,7 +1011,7 @@ export default function AdminEmployees() {
                   checked={bulkMustChangePwd}
                   onChange={(e) => setBulkMustChangePwd(e.target.checked)}
                 />
-                Require employees to choose their own password on first sign-in
+                Require candidates to set a new password on first sign-in
               </label>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
@@ -1061,13 +1142,37 @@ export default function AdminEmployees() {
                 </span>
               </div>
 
+              <div className="form-group">
+                <label className="form-label">Assign Exam(s) to Candidate</label>
+                {availableExams.length === 0 ? (
+                  <div className="neu-panel-inset" style={{ padding: 10, fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+                    No exams created yet. You can create exams under <strong>Exams &amp; Assignments</strong> and assign anytime.
+                  </div>
+                ) : (
+                  <div className="neu-panel-inset" style={{ padding: 10, maxHeight: 165, overflowY: 'auto', display: 'grid', gap: 6 }}>
+                    {availableExams.map((ex) => (
+                      <label key={ex.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.87rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={createExamIds.includes(ex.id)}
+                          onChange={() => toggleExamInList(setCreateExamIds, ex.id)}
+                        />
+                        <span>
+                          <strong>{ex.title}</strong> ({ex.isTimed ? `${ex.timeLimitMinutes}m` : 'Untimed'} &bull; {ex.status})
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem', marginBottom: 18, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={mustChangePwd}
                   onChange={(e) => setMustChangePwd(e.target.checked)}
                 />
-                Prompt employee to set a new password upon sign-in
+                Prompt candidate to set a new password upon sign-in
               </label>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
@@ -1075,7 +1180,83 @@ export default function AdminEmployees() {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Creating Account...' : 'Create Account'}
+                  {creating ? 'Creating Login...' : 'Create Login & Assign Exam'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 1-Click Assign Exams Modal */}
+      {assignModalTarget && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card" style={{ maxWidth: 540 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h2 style={{ fontSize: '1.22rem', margin: 0 }}>
+                  Assign Exams — {assignModalTarget.fullName}
+                </h2>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  {assignModalTarget.employeeCode} &bull; {assignModalTarget.email}
+                </span>
+              </div>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignModalTarget(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCandidateExams}>
+              {availableExams.length === 0 ? (
+                <div className="neu-panel-inset" style={{ padding: 14, color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  No exams created yet. Go to <strong>Exams &amp; Assignments</strong> to create and publish an exam first.
+                </div>
+              ) : (
+                <div className="neu-panel-inset" style={{ padding: 12, maxHeight: 260, overflowY: 'auto', display: 'grid', gap: 8 }}>
+                  {availableExams.map((ex) => {
+                    const checked = assignModalIds.includes(ex.id);
+                    return (
+                      <label
+                        key={ex.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          padding: '9px 11px',
+                          borderRadius: 8,
+                          border: '1px solid var(--border-subtle)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleExamInList(setAssignModalIds, ex.id)}
+                          />
+                          <span>
+                            <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{ex.title}</strong>
+                            <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                              {ex.isTimed ? `${ex.timeLimitMinutes} min timed` : 'Untimed'} &bull; Status: {ex.status}
+                            </span>
+                          </span>
+                        </span>
+                        <span className={`badge ${ex.status === 'published' ? 'badge-success' : 'badge-warn'}`}>
+                          {ex.status}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setAssignModalTarget(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingAssign}>
+                  {savingAssign ? 'Saving...' : 'Save Assigned Exams'}
                 </button>
               </div>
             </form>

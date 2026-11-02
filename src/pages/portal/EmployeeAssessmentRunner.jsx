@@ -245,7 +245,24 @@ export default function EmployeeAssessmentRunner() {
     setSavingState('unsaved');
   };
 
-  // Debounced auto-save as employee progresses
+  // Log tab-switches / window blurs during active exam for Admin visibility
+  const [tabWarning, setTabWarning] = useState(false);
+  useEffect(() => {
+    if (!attempt || attempt.status !== 'in_progress' || completionNotice) return undefined;
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        setTabWarning(true);
+        apiRequest(`/api/portal/attempts/${attemptId}/interruption`, {
+          method: 'POST',
+          body: { eventType: 'TAB_SWITCH' },
+        }).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => document.removeEventListener('visibilitychange', onVisChange);
+  }, [attempt, attemptId, completionNotice]);
+
+  // Debounced auto-save as candidate progresses
   useEffect(() => {
     if (savingState !== 'unsaved' || isOffline) return undefined;
     const t = setTimeout(() => {
@@ -283,10 +300,10 @@ export default function EmployeeAssessmentRunner() {
 
         <div style={{ display: 'flex', gap: 12 }}>
           <Link to="/portal/results" className="btn btn-primary">
-            View Submission History
+            Go to My Results
           </Link>
           <Link to="/portal" className="btn btn-secondary">
-            Return to Dashboard
+            Back to Assigned Exams
           </Link>
         </div>
       </div>
@@ -306,6 +323,14 @@ export default function EmployeeAssessmentRunner() {
 
   return (
     <div>
+      {tabWarning && (
+        <div className="alert alert-warn" role="alert">
+          <AlertTriangle size={18} />
+          <span>
+            <strong>Exam Focus Notice:</strong> Tab switches are logged and visible to the reviewing administrator. Please remain on this exam window until you submit.
+          </span>
+        </div>
+      )}
       {isOffline && (
         <div className="alert alert-warn" role="alert">
           <WifiOff size={18} />

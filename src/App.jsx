@@ -16,15 +16,9 @@ import TermsPage from './pages/public/TermsPage.jsx';
 import EmployeeLoginPage from './pages/public/EmployeeLoginPage.jsx';
 import NotFoundPage from './pages/public/NotFoundPage.jsx';
 
-import EmployeeDashboard from './pages/portal/EmployeeDashboard.jsx';
-import EmployeeGuidelines from './pages/portal/EmployeeGuidelines.jsx';
 import EmployeeAssessments from './pages/portal/EmployeeAssessments.jsx';
 import EmployeeAssessmentRunner from './pages/portal/EmployeeAssessmentRunner.jsx';
 import EmployeeResults from './pages/portal/EmployeeResults.jsx';
-import EmployeeReadiness from './pages/portal/EmployeeReadiness.jsx';
-import EmployeeAnnouncements from './pages/portal/EmployeeAnnouncements.jsx';
-import EmployeeNotifications from './pages/portal/EmployeeNotifications.jsx';
-import EmployeeFeedback from './pages/portal/EmployeeFeedback.jsx';
 
 import AdminLoginPage from './pages/admin/AdminLoginPage.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
@@ -173,17 +167,13 @@ export default function App() {
             <Route path="/login" element={<EmployeeLoginPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
 
-            {/* 3. Protected Employee Portal (Employee Role Only) */}
+            {/* 3. Protected Candidate Exam Portal (Contains ONLY Exams & Results) */}
             <Route path="/portal" element={<EmployeeLayout />}>
-              <Route index element={<EmployeeDashboard />} />
-              <Route path="guidelines" element={<EmployeeGuidelines />} />
+              <Route index element={<EmployeeAssessments />} />
               <Route path="assessments" element={<EmployeeAssessments />} />
               <Route path="assessments/take/:attemptId" element={<EmployeeAssessmentRunner />} />
               <Route path="results" element={<EmployeeResults />} />
-              <Route path="readiness" element={<EmployeeReadiness />} />
-              <Route path="announcements" element={<EmployeeAnnouncements />} />
-              <Route path="notifications" element={<EmployeeNotifications />} />
-              <Route path="feedback" element={<EmployeeFeedback />} />
+              <Route path="*" element={<Navigate to="/portal" replace />} />
             </Route>
 
             {/* 4. Protected Admin Portal (Admin Role Only) */}

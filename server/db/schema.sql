@@ -237,6 +237,19 @@ CREATE TABLE IF NOT EXISTS assessments (
 
 CREATE INDEX IF NOT EXISTS idx_assessments_status ON assessments(status);
 
+CREATE TABLE IF NOT EXISTS exam_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  assessment_id INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_by_identity TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(assessment_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_assignments_user ON exam_assignments(user_id);
+CREATE INDEX IF NOT EXISTS idx_exam_assignments_assessment ON exam_assignments(assessment_id);
+
 CREATE TABLE IF NOT EXISTS assessment_questions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   assessment_id INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
