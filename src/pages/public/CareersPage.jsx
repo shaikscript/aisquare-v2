@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Briefcase,
   Upload,
@@ -6,12 +7,17 @@ import {
   AlertCircle,
   FileText,
   ArrowDown,
-  Smartphone,
+  Sparkles,
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api.js';
 import { WORK_DOMAINS } from '../../components/DomainVisuals.jsx';
+import { useScrollReveal } from '../../components/MinimalStarfield.jsx';
 
 export default function CareersPage() {
+  const rootRef = useRef(null);
+  const [searchParams] = useSearchParams();
+  const trackParam = searchParams.get('track') || '';
+
   const [jobs, setJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState('');
@@ -20,7 +26,9 @@ export default function CareersPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [jobSelection, setJobSelection] = useState('general');
-  const [preferredTrack, setPreferredTrack] = useState(WORK_DOMAINS[0].title);
+  const [preferredTrack, setPreferredTrack] = useState(
+    WORK_DOMAINS.some((t) => t.title === trackParam) ? trackParam : WORK_DOMAINS[0].title
+  );
   const [educationExperience, setEducationExperience] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
   const [resumeFile, setResumeFile] = useState(null);
@@ -31,6 +39,8 @@ export default function CareersPage() {
 
   const formRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  useScrollReveal(rootRef);
 
   useEffect(() => {
     setLoadingJobs(true);
@@ -44,6 +54,18 @@ export default function CareersPage() {
       })
       .finally(() => setLoadingJobs(false));
   }, []);
+
+  useEffect(() => {
+    if (trackParam && WORK_DOMAINS.some((t) => t.title === trackParam)) {
+      setJobSelection('general');
+      setPreferredTrack(trackParam);
+      const timer = setTimeout(() => {
+        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 140);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [trackParam]);
 
   const handleSelectPosition = (jobId, trackTitle = '') => {
     setJobSelection(String(jobId));
@@ -129,27 +151,14 @@ export default function CareersPage() {
   };
 
   return (
-    <div style={{ padding: '44px 0 64px' }}>
+    <div ref={rootRef} style={{ padding: '44px 0 68px' }}>
       <div className="container">
         {/* Clean Editorial Careers Hero */}
-        <div className="neu-card" style={{ padding: '42px 36px', marginBottom: 32 }}>
+        <div className="neu-card scroll-reveal" style={{ padding: '42px 36px', marginBottom: 32 }}>
           <div style={{ maxWidth: 720 }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 12px',
-                borderRadius: 6,
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                fontSize: '0.78rem',
-                color: '#d8d8d8',
-                marginBottom: 16,
-              }}
-            >
-              <Smartphone size={14} />
-              <span>Careers &bull; iOS &amp; Android AI Evaluation</span>
+            <div className="vesper-eyebrow-pill" style={{ marginBottom: 16 }}>
+              <Sparkles size={13} />
+              <span>Careers &bull; Human AI Evaluation</span>
             </div>
 
             <h1
@@ -177,9 +186,9 @@ export default function CareersPage() {
             </h1>
 
             <p style={{ margin: '0 0 24px', color: '#9a9a9a', fontSize: '0.98rem', lineHeight: 1.65 }}>
-              We look for sharp, detail-oriented thinkers passionate about iOS &amp; Android
-              ecosystems across Generative Image &amp; Video Grading, Search Evaluation, Online Ads
-              Assessment, Media Search, Audio Transcription, POI Validation, and Local Search Maps.
+              We look for sharp, detail-oriented thinkers across Generative Image &amp; Video
+              Grading, Search Evaluation, Online Ads Assessment, Media Discovery, Speech
+              Transcription, POI Validation, and Local Maps.
             </p>
 
             <button
@@ -194,16 +203,26 @@ export default function CareersPage() {
         </div>
 
         {/* Quick Track Selector Chips */}
-        <div style={{ marginBottom: 34 }}>
-          <div style={{ fontSize: '0.78rem', color: '#9a9a9a', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-            Core Evaluation Tracks (Click any track to apply)
+        <div className="scroll-reveal" style={{ marginBottom: 34 }}>
+          <div
+            style={{
+              fontSize: '0.76rem',
+              color: '#9a9a9a',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 12,
+            }}
+          >
+            Select a Specialization Track to Pre-Fill Your Application
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {WORK_DOMAINS.map((track) => (
               <button
                 key={track.id}
                 type="button"
-                className="vesper-nav-pill"
+                className={`vesper-nav-pill${
+                  jobSelection === 'general' && preferredTrack === track.title ? ' active' : ''
+                }`}
                 style={{ cursor: 'pointer' }}
                 onClick={() => handleSelectPosition('general', track.title)}
               >
@@ -214,7 +233,7 @@ export default function CareersPage() {
         </div>
 
         {/* Published Open Positions */}
-        <section style={{ marginBottom: 40 }}>
+        <section className="scroll-reveal" style={{ marginBottom: 40 }}>
           <div
             style={{
               display: 'flex',
@@ -245,13 +264,13 @@ export default function CareersPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <Briefcase size={18} color="#ffffff" />
                 <strong style={{ color: '#ffffff', fontWeight: 500 }}>
-                  General Evaluator Intake Open (iOS &amp; Android Tracks)
+                  General Evaluator Intake Open
                 </strong>
               </div>
               <p style={{ margin: 0, color: '#9a9a9a', fontSize: '0.92rem', lineHeight: 1.6 }}>
-                Select your preferred specialization below and submit a{' '}
+                Select your preferred specialization above or below and submit a{' '}
                 <strong style={{ color: '#d8d8d8' }}>General Application</strong> with your resume to
-                be considered for current and upcoming iOS &amp; Android AI evaluation cohorts.
+                be considered for current and upcoming AI evaluation cohorts.
               </p>
             </div>
           ) : (
@@ -300,7 +319,14 @@ export default function CareersPage() {
                         <h4 style={{ fontSize: '0.86rem', color: '#ffffff', marginBottom: 6 }}>
                           Responsibilities
                         </h4>
-                        <p style={{ margin: 0, fontSize: '0.86rem', color: '#9a9a9a', whiteSpace: 'pre-line' }}>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '0.86rem',
+                            color: '#9a9a9a',
+                            whiteSpace: 'pre-line',
+                          }}
+                        >
                           {job.responsibilities}
                         </p>
                       </div>
@@ -310,7 +336,14 @@ export default function CareersPage() {
                         <h4 style={{ fontSize: '0.86rem', color: '#ffffff', marginBottom: 6 }}>
                           Qualifications
                         </h4>
-                        <p style={{ margin: 0, fontSize: '0.86rem', color: '#9a9a9a', whiteSpace: 'pre-line' }}>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '0.86rem',
+                            color: '#9a9a9a',
+                            whiteSpace: 'pre-line',
+                          }}
+                        >
                           {job.qualifications}
                         </p>
                       </div>
@@ -322,8 +355,8 @@ export default function CareersPage() {
           )}
         </section>
 
-        {/* Clean Aurora-Styled Application Form */}
-        <section ref={formRef}>
+        {/* Application Form */}
+        <section ref={formRef} className="scroll-reveal">
           <div className="neu-card" style={{ padding: '34px 32px' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 500, marginBottom: 6 }}>
               Evaluator Application Form
@@ -355,7 +388,9 @@ export default function CareersPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid-2" style={{ gap: 18 }}>
                 <div className="form-group">
-                  <label className="form-label" htmlFor="app-name">Full Name *</label>
+                  <label className="form-label" htmlFor="app-name">
+                    Full Name *
+                  </label>
                   <input
                     id="app-name"
                     type="text"
@@ -368,7 +403,9 @@ export default function CareersPage() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="app-email">Email Address *</label>
+                  <label className="form-label" htmlFor="app-email">
+                    Email Address *
+                  </label>
                   <input
                     id="app-email"
                     type="email"
@@ -383,7 +420,9 @@ export default function CareersPage() {
 
               <div className="grid-2" style={{ gap: 18 }}>
                 <div className="form-group">
-                  <label className="form-label" htmlFor="app-phone">Phone / WhatsApp Number *</label>
+                  <label className="form-label" htmlFor="app-phone">
+                    Phone / WhatsApp Number *
+                  </label>
                   <input
                     id="app-phone"
                     type="tel"
@@ -396,14 +435,16 @@ export default function CareersPage() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="app-position">Opening *</label>
+                  <label className="form-label" htmlFor="app-position">
+                    Opening *
+                  </label>
                   <select
                     id="app-position"
                     className="neu-select"
                     value={jobSelection}
                     onChange={(e) => setJobSelection(e.target.value)}
                   >
-                    <option value="general">General Evaluator Application (iOS &amp; Android)</option>
+                    <option value="general">General Evaluator Application</option>
                     {jobs.map((job) => (
                       <option key={job.id} value={String(job.id)}>
                         {job.title}
@@ -426,11 +467,11 @@ export default function CareersPage() {
                   >
                     {WORK_DOMAINS.map((track) => (
                       <option key={track.id} value={track.title}>
-                        {track.title} ({track.platform})
+                        {track.title}
                       </option>
                     ))}
-                    <option value="Open to Any iOS & Android Track">
-                      Open to Any iOS &amp; Android Track
+                    <option value="Open to Any Evaluation Track">
+                      Open to Any Evaluation Track
                     </option>
                   </select>
                 </div>
@@ -438,12 +479,12 @@ export default function CareersPage() {
 
               <div className="form-group">
                 <label className="form-label" htmlFor="app-edu">
-                  Education, Device Familiarity (iOS / Android) &amp; Experience *
+                  Education, Languages &amp; Relevant Experience *
                 </label>
                 <textarea
                   id="app-edu"
                   className="neu-textarea"
-                  placeholder="Share your education, languages spoken, iOS/Android familiarity, and any analytical or evaluation experience..."
+                  placeholder="Share your education, spoken/written languages, desktop & mobile familiarity, and any analytical or research experience..."
                   value={educationExperience}
                   onChange={(e) => setEducationExperience(e.target.value)}
                   required
@@ -476,7 +517,8 @@ export default function CareersPage() {
                     >
                       <FileText size={16} />
                       <span>
-                        Selected: <strong>{resumeFile.name}</strong> ({(resumeFile.size / 1024).toFixed(1)} KB)
+                        Selected: <strong>{resumeFile.name}</strong> (
+                        {(resumeFile.size / 1024).toFixed(1)} KB)
                       </span>
                     </div>
                   )}
@@ -491,7 +533,7 @@ export default function CareersPage() {
                   id="app-cover"
                   className="neu-textarea"
                   style={{ minHeight: 86 }}
-                  placeholder="Weekly availability, preferred languages, or additional context..."
+                  placeholder="Weekly availability, preferred specialization, or additional context..."
                   value={coverLetter}
                   onChange={(e) => setCoverLetter(e.target.value)}
                 />

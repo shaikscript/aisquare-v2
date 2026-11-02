@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { VesperMarkSvg } from './BrandLogo.jsx';
 
@@ -9,7 +10,7 @@ export function CosmicBrandMark({ size = 22 }) {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 9,
+        gap: 10,
         fontSize: '15.5px',
         fontWeight: 600,
         letterSpacing: '-0.03em',
@@ -17,8 +18,19 @@ export function CosmicBrandMark({ size = 22 }) {
       }}
     >
       <VesperMarkSvg size={size} color="#ffffff" />
-      <span>
-        AI Square<span style={{ fontWeight: 400, color: '#9a9a9a' }}>.it</span>
+      <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+        <span>AI Square</span>
+        <span
+          style={{
+            fontSize: '11px',
+            fontWeight: 500,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: '#8a8a92',
+          }}
+        >
+          IT Solutions
+        </span>
       </span>
     </span>
   );
@@ -26,7 +38,18 @@ export function CosmicBrandMark({ size = 22 }) {
 
 export default function PublicNavbar({ animateEntrance = false }) {
   const { user } = useAuth();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setScrolled(window.scrollY > 24);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     if (menuOpen) {
@@ -53,6 +76,7 @@ export default function PublicNavbar({ animateEntrance = false }) {
   }, []);
 
   const closeMenu = () => setMenuOpen(false);
+  const isTracksHash = location.pathname === '/' && location.hash === '#tracks';
 
   return (
     <>
@@ -61,124 +85,146 @@ export default function PublicNavbar({ animateEntrance = false }) {
         onClick={closeMenu}
         aria-hidden="true"
       />
-      <header className="vesper-header">
-        {/* Left — Vesper Mark + Wordmark */}
+      <header className={`vesper-header${scrolled ? ' vesper-header--scrolled' : ''}`}>
+        {/* Left — Clean Brand Mark + Wordmark (No '.it') */}
         <Link
           to="/"
           onClick={closeMenu}
-          aria-label="AI Square Home"
+          aria-label="AI Square IT Solutions Home"
           className={`vesper-logo${animateEntrance ? ' vesper-appear vesper-appear--scale' : ''}`}
           style={{ '--d': '0.08s' }}
         >
-          <VesperMarkSvg size={22} color="currentColor" />
-          <span>
-            AI Square<span className="vesper-logo-suffix">.it</span>
+          <span className="vesper-logo-emblem">
+            <VesperMarkSvg size={18} color="#ffffff" />
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+            <span>AI Square</span>
+            <span className="vesper-logo-tag">IT Solutions</span>
           </span>
         </Link>
 
-        {/* Center — Liquid-Metal Navigation Pills */}
+        {/* Center — Unified Frosted Metallic Navigation Dock */}
         <nav
           id="site-nav"
           aria-label="Primary"
           className={`vesper-nav${menuOpen ? ' open' : ''}`}
         >
-          <NavLink
-            to="/about"
-            onClick={closeMenu}
-            className={({ isActive }) =>
-              `vesper-nav-pill${isActive ? ' active' : ''}${
-                animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
-              }`
-            }
-            style={{ '--d': '0.16s' }}
-          >
-            Vision
-          </NavLink>
+          <div className="vesper-nav-dock">
+            <NavLink
+              to="/"
+              end
+              onClick={closeMenu}
+              className={({ isActive }) =>
+                `vesper-nav-pill${isActive && !isTracksHash ? ' active' : ''}${
+                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
+                }`
+              }
+              style={{ '--d': '0.14s' }}
+            >
+              Overview
+            </NavLink>
+
+            <NavLink
+              to="/about"
+              onClick={closeMenu}
+              className={({ isActive }) =>
+                `vesper-nav-pill${isActive ? ' active' : ''}${
+                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
+                }`
+              }
+              style={{ '--d': '0.22s' }}
+            >
+              Vision
+            </NavLink>
+
+            <Link
+              to="/#tracks"
+              onClick={closeMenu}
+              className={`vesper-nav-pill${isTracksHash ? ' active' : ''}${
+                animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
+              }`}
+              style={{ '--d': '0.30s' }}
+            >
+              Evaluation Roles
+            </Link>
+
+            <NavLink
+              to="/careers"
+              onClick={closeMenu}
+              className={({ isActive }) =>
+                `vesper-nav-pill${isActive ? ' active' : ''}${
+                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
+                }`
+              }
+              style={{ '--d': '0.38s' }}
+            >
+              Careers
+            </NavLink>
+
+            <NavLink
+              to="/contact"
+              onClick={closeMenu}
+              className={({ isActive }) =>
+                `vesper-nav-pill${isActive ? ' active' : ''}${
+                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
+                }`
+              }
+              style={{ '--d': '0.46s' }}
+            >
+              Contact
+            </NavLink>
+          </div>
 
           <Link
-            to="/#tracks"
+            to={user ? (user.role === 'admin' ? '/admin' : '/portal') : '/login'}
             onClick={closeMenu}
-            className={`vesper-nav-pill${animateEntrance ? ' vesper-appear vesper-appear--soft' : ''}`}
-            style={{ '--d': '0.28s' }}
+            className="vesper-nav-pill vesper-mobile-only-link"
           >
-            iOS &amp; Android Roles
+            {user ? (user.role === 'admin' ? 'Admin Console' : 'Evaluator Portal') : 'Evaluator Sign In'}
           </Link>
-
-          <NavLink
-            to="/careers"
-            onClick={closeMenu}
-            className={({ isActive }) =>
-              `vesper-nav-pill${isActive ? ' active' : ''}${
-                animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
-              }`
-            }
-            style={{ '--d': '0.40s' }}
-          >
-            Careers
-          </NavLink>
-
-          <NavLink
-            to="/contact"
-            onClick={closeMenu}
-            className={({ isActive }) =>
-              `vesper-nav-pill${isActive ? ' active' : ''}${
-                animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
-              }`
-            }
-            style={{ '--d': '0.52s' }}
-          >
-            Location &amp; Contact
-          </NavLink>
-
-          {!user && (
-            <Link
-              to="/login"
-              onClick={closeMenu}
-              className="vesper-nav-pill vesper-mobile-only-link"
-            >
-              Employee Sign In
-            </Link>
-          )}
         </nav>
 
-        {/* Right — Metallic Ghost Login + Solid White Apply CTA + Burger */}
-        <div
-          className={`vesper-header-right${animateEntrance ? ' vesper-appear vesper-appear--scale' : ''}`}
-          style={{ '--d': '0.34s' }}
-        >
+        {/* Right — Portal Sign-In + Apply CTA */}
+        <div className="vesper-header-right">
           {user ? (
             <Link
               to={user.role === 'admin' ? '/admin' : '/portal'}
-              onClick={closeMenu}
-              className="vesper-btn vesper-btn-solid"
+              className={`vesper-btn vesper-btn-ghost${
+                animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
+              }`}
+              style={{ '--d': '0.54s' }}
             >
               {user.role === 'admin' ? 'Admin Console' : 'Evaluator Portal'}
             </Link>
           ) : (
-            <>
-              <Link
-                to="/login"
-                onClick={closeMenu}
-                className="vesper-btn vesper-btn-ghost vesper-desktop-login"
-              >
-                Employee Login
-              </Link>
-              <Link
-                to="/careers"
-                onClick={closeMenu}
-                className="vesper-btn vesper-btn-solid"
-              >
-                Apply Now
-              </Link>
-            </>
+            <Link
+              to="/login"
+              className={`vesper-btn vesper-btn-ghost${
+                animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
+              }`}
+              style={{ '--d': '0.54s' }}
+            >
+              Evaluator Sign In
+            </Link>
           )}
+
+          <Link
+            to="/careers"
+            className={`vesper-btn vesper-btn-solid${
+              animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
+            }`}
+            style={{ '--d': '0.64s' }}
+          >
+            <span>Apply Now</span>
+            <ArrowUpRight size={14} style={{ marginLeft: 5 }} />
+          </Link>
 
           <button
             type="button"
             className={`vesper-burger${menuOpen ? ' open' : ''}`}
-            aria-controls="site-nav"
+            aria-label="Menu"
             aria-expanded={menuOpen}
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-controls="site-nav"
             onClick={() => setMenuOpen((prev) => !prev)}
           >
             <span />

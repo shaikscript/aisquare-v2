@@ -18,8 +18,8 @@ import { useAuth } from '../../context/AuthContext.jsx';
 const CANDIDATE_TOPICS = [
   'Evaluator Careers Question',
   'Application Status Follow-Up',
-  'iOS & Android Role Eligibility',
-  'Employee Portal Access Help',
+  'Track & Role Eligibility',
+  'Evaluator Portal Access Help',
   'General Question',
 ];
 
@@ -167,8 +167,8 @@ export default function ContactPage() {
             </em>
           </h1>
           <p style={{ margin: 0, color: '#9a9a9a', fontSize: '0.96rem', lineHeight: 1.6 }}>
-            Have a question about our iOS &amp; Android AI Evaluator roles, application process, or
-            office location? Reach our team directly below.
+            Have a question about our AI Evaluator tracks, application process, or office
+            location? Reach our team directly below.
           </p>
         </div>
 
@@ -319,8 +319,7 @@ export default function ContactPage() {
                 </strong>
               </div>
               <p style={{ margin: '0 0 14px', fontSize: '0.88rem', color: '#9a9a9a', lineHeight: 1.55 }}>
-                Submit your resume directly for iOS &amp; Android AI Evaluator openings on our
-                Careers page.
+                Submit your resume directly for open AI Evaluator tracks on our Careers page.
               </p>
               <Link to="/careers" className="vesper-btn vesper-btn-ghost">
                 Go to Evaluator Careers &rarr;

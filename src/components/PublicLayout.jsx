@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { MapPin, Mail, Phone, ExternalLink } from 'lucide-react';
 import PublicNavbar, { CosmicBrandMark } from './PublicNavbar.jsx';
+import MinimalStarfield from './MinimalStarfield.jsx';
 import { WORK_DOMAINS } from './DomainVisuals.jsx';
 import { apiRequest } from '../utils/api.js';
 import { resolveCompanyMap } from '../utils/mapHelper.js';
@@ -31,9 +32,11 @@ export default function PublicLayout() {
 
   return (
     <div className="futuristic-public-shell">
+      {/* Minimal ambient starfield across all public black backgrounds */}
+      <MinimalStarfield variant="ambient" />
       <div className="vesper-grain" aria-hidden="true" />
 
-      {/* On '/', PublicNavbar sits inside the 100vh Vesper hero frame */}
+      {/* Sticky top navbar on inner pages (on '/', PublicNavbar docks smoothly inside & past hero) */}
       {!isHome && <PublicNavbar />}
 
       <main style={{ flex: 1, position: 'relative', zIndex: 2 }}>
@@ -55,8 +58,8 @@ export default function PublicLayout() {
                   lineHeight: 1.65,
                 }}
               >
-                Advancing iOS &amp; Android AI quality through structured human evaluation across
-                generative media, search, ads, audio, and local maps.
+                Advancing AI reliability through structured human evaluation across generative
+                media, search relevance, voice synthesis, and spatial intelligence.
               </p>
 
               {(resolvedMap || publicInfo?.contactEmail || publicInfo?.contactPhone) && (
@@ -125,7 +128,9 @@ export default function PublicLayout() {
                   {publicInfo?.contactPhone && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#d8d8d8' }}>
                       <Phone size={14} color="#ffffff" style={{ flexShrink: 0 }} />
-                      <span>{publicInfo.contactPhone}</span>
+                      <a href={`tel:${publicInfo.contactPhone}`} style={{ color: '#d8d8d8' }}>
+                        {publicInfo.contactPhone}
+                      </a>
                     </div>
                   )}
                 </div>
@@ -135,128 +140,107 @@ export default function PublicLayout() {
             <div>
               <h4
                 style={{
-                  fontSize: '0.73rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: '#9a9a9a',
+                  color: '#ffffff',
                   marginBottom: 14,
                 }}
               >
-                iOS &amp; Android Tracks
+                Evaluation Tracks
               </h4>
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: 0,
-                  display: 'grid',
-                  gap: 8,
-                  fontSize: '0.86rem',
-                }}
-              >
-                {WORK_DOMAINS.slice(0, 6).map((d) => (
-                  <li key={d.id}>
-                    <Link to="/#tracks" style={{ color: '#d8d8d8' }}>
-                      {d.title}
-                    </Link>
-                  </li>
+              <div style={{ display: 'grid', gap: 8, fontSize: '0.86rem' }}>
+                {WORK_DOMAINS.slice(0, 5).map((d) => (
+                  <Link
+                    key={d.id}
+                    to={`/careers?track=${encodeURIComponent(d.title)}`}
+                    style={{ color: '#9a9a9a', textDecoration: 'none' }}
+                  >
+                    {d.title}
+                  </Link>
                 ))}
-              </ul>
+                <Link to="/#tracks" style={{ color: '#ffffff', fontSize: '0.82rem', marginTop: 2 }}>
+                  View all 7+ tracks &rarr;
+                </Link>
+              </div>
             </div>
 
             <div>
               <h4
                 style={{
-                  fontSize: '0.73rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: '#9a9a9a',
+                  color: '#ffffff',
                   marginBottom: 14,
                 }}
               >
-                Explore
+                Company &amp; Careers
               </h4>
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: 0,
-                  display: 'grid',
-                  gap: 8,
-                  fontSize: '0.88rem',
-                }}
-              >
-                <li>
-                  <Link to="/" style={{ color: '#d8d8d8' }}>Home</Link>
-                </li>
-                <li>
-                  <Link to="/about" style={{ color: '#d8d8d8' }}>Our Vision &amp; Roles</Link>
-                </li>
-                <li>
-                  <Link to="/careers" style={{ color: '#d8d8d8' }}>Evaluator Careers</Link>
-                </li>
-                <li>
-                  <Link to="/contact" style={{ color: '#d8d8d8' }}>Location &amp; Contact</Link>
-                </li>
-              </ul>
+              <div style={{ display: 'grid', gap: 8, fontSize: '0.86rem' }}>
+                <Link to="/about" style={{ color: '#9a9a9a' }}>
+                  Vision &amp; Methodology
+                </Link>
+                <Link to="/careers" style={{ color: '#9a9a9a' }}>
+                  Open Evaluator Roles
+                </Link>
+                <Link to="/contact" style={{ color: '#9a9a9a' }}>
+                  Contact &amp; Location
+                </Link>
+                <Link to="/privacy" style={{ color: '#9a9a9a' }}>
+                  Privacy Policy
+                </Link>
+                <Link to="/terms" style={{ color: '#9a9a9a' }}>
+                  Terms of Service
+                </Link>
+              </div>
             </div>
 
             <div>
               <h4
                 style={{
-                  fontSize: '0.73rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: '#9a9a9a',
+                  color: '#ffffff',
                   marginBottom: 14,
                 }}
               >
-                Portals &amp; Legal
+                Workspaces
               </h4>
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: 0,
-                  display: 'grid',
-                  gap: 8,
-                  fontSize: '0.88rem',
-                }}
-              >
-                <li>
-                  <Link to="/login" style={{ color: '#ffffff', fontWeight: 500 }}>
-                    Employee Evaluator Login &rarr;
+              <div style={{ display: 'grid', gap: 10, fontSize: '0.86rem' }}>
+                <Link to="/login" style={{ color: '#d8d8d8' }}>
+                  Evaluator Portal Sign In
+                </Link>
+                <Link to="/admin/login" style={{ color: '#9a9a9a' }}>
+                  Administrator Console
+                </Link>
+                <div style={{ paddingTop: 6 }}>
+                  <Link to="/careers" className="vesper-btn vesper-btn-solid" style={{ width: '100%' }}>
+                    Apply as an Evaluator
                   </Link>
-                </li>
-                <li>
-                  <Link to="/admin/login" style={{ color: '#9a9a9a' }}>
-                    Administrator Sign In
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/privacy" style={{ color: '#9a9a9a' }}>Privacy Policy</Link>
-                </li>
-                <li>
-                  <Link to="/terms" style={{ color: '#9a9a9a' }}>Terms of Use</Link>
-                </li>
-              </ul>
+                </div>
+              </div>
             </div>
           </div>
 
           <div
             style={{
               paddingTop: 22,
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
               display: 'flex',
               flexWrap: 'wrap',
               justifyContent: 'space-between',
               gap: 12,
-              fontSize: '0.82rem',
-              color: '#9a9a9a',
+              fontSize: '0.8rem',
+              color: '#7e7e86',
             }}
           >
             <span>&copy; {new Date().getFullYear()} AI Square IT Solutions. All rights reserved.</span>
-            <span>iOS &amp; Android AI Evaluation &bull; Evaluator Careers</span>
+            <span>Human-in-the-Loop AI Evaluation &bull; Evaluator Careers</span>
           </div>
         </div>
       </footer>

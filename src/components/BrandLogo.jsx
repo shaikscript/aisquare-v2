@@ -20,7 +20,7 @@ export function VesperMarkSvg({ size = 22, color = 'currentColor' }) {
   );
 }
 
-export default function BrandLogo({ subtitle = 'EVALUATION WORKSPACE', compact = false }) {
+export default function BrandLogo({ subtitle = 'IT SOLUTIONS', compact = false }) {
   const boxSize = compact ? 34 : 40;
 
   return (
@@ -48,28 +48,16 @@ export default function BrandLogo({ subtitle = 'EVALUATION WORKSPACE', compact =
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-          <span
-            style={{
-              fontWeight: 600,
-              fontSize: compact ? '0.98rem' : '1.08rem',
-              color: 'var(--text-primary)',
-              letterSpacing: '-0.03em',
-            }}
-          >
-            AI Square
-          </span>
-          <span
-            style={{
-              fontSize: compact ? '0.82rem' : '0.88rem',
-              fontWeight: 400,
-              color: 'var(--text-muted)',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            .it
-          </span>
-        </div>
+        <span
+          style={{
+            fontWeight: 600,
+            fontSize: compact ? '0.98rem' : '1.08rem',
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.03em',
+          }}
+        >
+          AI Square
+        </span>
         {subtitle && (
           <span
             style={{

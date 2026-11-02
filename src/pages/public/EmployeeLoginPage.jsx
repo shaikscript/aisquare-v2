@@ -82,7 +82,7 @@ export default function EmployeeLoginPage() {
           <div className="aurora-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
             <h2 className="aurora-hero-title">Evaluator Space</h2>
             <p className="aurora-hero-desc">
-              Follow these 3 structured phases inside your iOS &amp; Android AI workspace.
+              Follow these 3 structured phases inside your AI evaluation workspace.
             </p>
           </div>
 
@@ -140,7 +140,7 @@ export default function EmployeeLoginPage() {
                 id="emp-id"
                 type="text"
                 className="aurora-input"
-                placeholder="evaluator@aisquare.it or username"
+                placeholder="name@company.com or username"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 autoComplete="username"

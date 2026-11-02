@@ -231,7 +231,7 @@ export default function AdminLoginPage() {
                     id="boot-email"
                     type="email"
                     className="aurora-input"
-                    placeholder="admin@aisquare.it"
+                    placeholder="admin@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required

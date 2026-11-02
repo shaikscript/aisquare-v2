@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Users, CheckCircle, ArrowUpRight, Smartphone } from 'lucide-react';
+import { ShieldCheck, Users, CheckCircle, ArrowUpRight, Sparkles } from 'lucide-react';
 import { apiRequest } from '../../utils/api.js';
 import { WORK_DOMAINS, DomainEmblem } from '../../components/DomainVisuals.jsx';
+import { useScrollReveal } from '../../components/MinimalStarfield.jsx';
 
 export default function AboutPage() {
+  const rootRef = useRef(null);
   const [companyInfo, setCompanyInfo] = useState(null);
+
+  useScrollReveal(rootRef);
 
   useEffect(() => {
     apiRequest('/api/public/info')
@@ -14,33 +18,20 @@ export default function AboutPage() {
   }, []);
 
   return (
-    <div style={{ padding: '44px 0 64px' }}>
+    <div ref={rootRef} style={{ padding: '44px 0 68px' }}>
       <div className="container">
         {/* Clean Editorial Vision Header */}
         <div
-          className="neu-card"
+          className="neu-card scroll-reveal"
           style={{
             padding: '44px 38px',
             marginBottom: 32,
           }}
         >
           <div style={{ maxWidth: 740 }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 12px',
-                borderRadius: 6,
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                fontSize: '0.78rem',
-                color: '#d8d8d8',
-                marginBottom: 18,
-              }}
-            >
-              <Smartphone size={14} />
-              <span>Vision &amp; Mobile AI Ecosystem</span>
+            <div className="vesper-eyebrow-pill" style={{ marginBottom: 18 }}>
+              <Sparkles size={13} />
+              <span>Vision &amp; Methodology</span>
             </div>
 
             <h1
@@ -63,44 +54,65 @@ export default function AboutPage() {
                   fontSize: '1.08em',
                 }}
               >
-                iOS &amp; Android
+                Modern AI
               </em>{' '}
-              AI Quality.
+              Quality.
             </h1>
 
             <p style={{ fontSize: '1.02rem', color: '#d8d8d8', lineHeight: 1.68, marginBottom: 14 }}>
               AI Square IT Solutions builds and trains a focused community of human AI evaluators
-              working across modern iOS and Android ecosystems — from generative image and video
-              grading to search evaluation, online ads assessment, media search, audio
-              transcription, POI validation, and local search map evaluation.
+              working across generative image and video grading, search relevance, online ads
+              assessment, media discovery, speech transcription, and geospatial validation.
             </p>
             <p style={{ fontSize: '0.94rem', color: '#9a9a9a', lineHeight: 1.65, margin: 0 }}>
               Every evaluator prepares inside our dedicated workspace with version-controlled
-              guidelines, practical readiness assessments, and transparent feedback so quality
-              remains consistent and grounded in clear rubrics.
+              guidelines, scenario-based readiness assessments, and structured calibration across
+              both desktop and mobile surfaces.
             </p>
           </div>
         </div>
 
         {/* Dynamic Mission & Vision (From Admin Company Info) */}
         {(companyInfo?.mission || companyInfo?.vision) && (
-          <div className="grid-2" style={{ marginBottom: 30 }}>
+          <div className="grid-2 scroll-reveal" style={{ marginBottom: 30 }}>
             {companyInfo.mission && (
               <div className="neu-card">
-                <span style={{ fontSize: '0.74rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9a9a9a' }}>
+                <span
+                  style={{
+                    fontSize: '0.74rem',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: '#9a9a9a',
+                  }}
+                >
                   Mission
                 </span>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 500, margin: '6px 0 10px' }}>Our Mission</h2>
-                <p style={{ margin: 0, color: '#d8d8d8', lineHeight: 1.65 }}>{companyInfo.mission}</p>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 500, margin: '6px 0 10px' }}>
+                  Our Mission
+                </h2>
+                <p style={{ margin: 0, color: '#d8d8d8', lineHeight: 1.65 }}>
+                  {companyInfo.mission}
+                </p>
               </div>
             )}
             {companyInfo.vision && (
               <div className="neu-card">
-                <span style={{ fontSize: '0.74rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9a9a9a' }}>
+                <span
+                  style={{
+                    fontSize: '0.74rem',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: '#9a9a9a',
+                  }}
+                >
                   Vision
                 </span>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 500, margin: '6px 0 10px' }}>Our Vision</h2>
-                <p style={{ margin: 0, color: '#d8d8d8', lineHeight: 1.65 }}>{companyInfo.vision}</p>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 500, margin: '6px 0 10px' }}>
+                  Our Vision
+                </h2>
+                <p style={{ margin: 0, color: '#d8d8d8', lineHeight: 1.65 }}>
+                  {companyInfo.vision}
+                </p>
               </div>
             )}
           </div>
@@ -108,8 +120,10 @@ export default function AboutPage() {
 
         {/* Core Values (From Admin Company Info) */}
         {companyInfo?.values?.length > 0 && (
-          <div className="neu-card" style={{ marginBottom: 30 }}>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 500, marginBottom: 16 }}>Core Principles</h2>
+          <div className="neu-card scroll-reveal" style={{ marginBottom: 30 }}>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 500, marginBottom: 16 }}>
+              Core Principles
+            </h2>
             <div className="grid-2">
               {companyInfo.values.map((val, idx) => (
                 <div
@@ -125,14 +139,15 @@ export default function AboutPage() {
           </div>
         )}
 
-        {/* All 7 iOS & Android Specializations */}
-        <div className="neu-card" style={{ marginBottom: 30 }}>
+        {/* All 7 Evaluation Disciplines */}
+        <div className="neu-card scroll-reveal" style={{ marginBottom: 30 }}>
           <div style={{ marginBottom: 22 }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 500, marginBottom: 6 }}>
-              Core iOS &amp; Android Evaluation Disciplines
+              Core Evaluation Disciplines
             </h2>
             <p style={{ margin: 0, color: '#9a9a9a', fontSize: '0.92rem' }}>
-              Specialized human-in-the-loop roles across mobile search, generative media, audio, and maps.
+              Specialized human-in-the-loop roles spanning multimodal generation, search intent,
+              speech prosody, and real-world spatial data.
             </p>
           </div>
 
@@ -144,7 +159,7 @@ export default function AboutPage() {
                 style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '18px' }}
               >
                 <DomainEmblem id={d.id} size={40} />
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 500, color: '#ffffff', fontSize: '0.98rem', marginBottom: 4 }}>
                     {d.title}
                   </div>
@@ -158,7 +173,7 @@ export default function AboutPage() {
         </div>
 
         {/* Evaluator Experience Cards */}
-        <div className="grid-2" style={{ marginBottom: 30 }}>
+        <div className="grid-2 scroll-reveal" style={{ marginBottom: 30 }}>
           <div className="neu-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <Users size={20} color="#ffffff" />
@@ -168,7 +183,7 @@ export default function AboutPage() {
             </div>
             <p style={{ color: '#9a9a9a', lineHeight: 1.65, margin: 0 }}>
               Onboarded evaluators access an organized portal containing project guidelines,
-              practice scenarios, timed readiness assessments, and clear project readiness tracking.
+              practice scenarios, timed readiness assessments, and transparent progress tracking.
             </p>
           </div>
 
@@ -180,15 +195,16 @@ export default function AboutPage() {
               </h2>
             </div>
             <p style={{ color: '#9a9a9a', lineHeight: 1.65, margin: 0 }}>
-              Great AI evaluation comes from objective adherence to well-crafted guidelines rather
-              than guesswork — empowering detail-oriented contributors to deliver high-trust mobile AI feedback.
+              Reliable AI evaluation comes from objective adherence to well-crafted guidelines
+              rather than guesswork — empowering detail-oriented contributors to deliver high-trust
+              judgment.
             </p>
           </div>
         </div>
 
         {/* Career Invitation Banner */}
         <div
-          className="neu-card"
+          className="neu-card scroll-reveal"
           style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -211,7 +227,7 @@ export default function AboutPage() {
               <ArrowUpRight size={15} style={{ marginLeft: 6 }} />
             </Link>
             <Link to="/login" className="vesper-btn vesper-btn-ghost">
-              Employee Sign In
+              Evaluator Sign In
             </Link>
           </div>
         </div>
