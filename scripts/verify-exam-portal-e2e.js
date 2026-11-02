@@ -121,15 +121,30 @@ async function main() {
     });
     assert.equal(issueRes.status, 201);
     assert.equal(issueRes.data.isNewAccount, true);
+    assert.match(issueRes.data.credentials.employeeCode, /^CND-/);
     assert.equal(issueRes.data.credentials.assignedExams.length, 1);
 
-    // Candidate 1 logs in and checks Assigned Exams
+    // Candidate 1 MUST be blocked from Employee Portal login (/login)
     const cand1 = new Client();
-    const login1 = await cand1.req('/api/auth/employee/login', {
+    const wrongPortalLogin = await cand1.req('/api/auth/employee/login', {
+      method: 'POST',
+      body: { identifier: issueRes.data.credentials.username, password: 'TempExamPass22!' },
+    });
+    assert.equal(wrongPortalLogin.status, 403, 'Candidate must not log into Employee Portal');
+
+    // Candidate 1 logs in cleanly at Candidate Exam Portal (/exam-login)
+    const login1 = await cand1.req('/api/auth/candidate/login', {
       method: 'POST',
       body: { identifier: issueRes.data.credentials.username, password: 'TempExamPass22!' },
     });
     assert.equal(login1.status, 200);
+    assert.equal(login1.data.user.accountType, 'candidate');
+
+    // Candidate 1 MUST be blocked from Employee-only modules (Overview, Guidelines, Readiness, Announcements)
+    assert.equal((await cand1.req('/api/portal/overview')).status, 403);
+    assert.equal((await cand1.req('/api/portal/guidelines')).status, 403);
+    assert.equal((await cand1.req('/api/portal/readiness')).status, 403);
+    assert.equal((await cand1.req('/api/portal/announcements')).status, 403);
 
     const cand1Exams = await cand1.req('/api/portal/assessments');
     assert.equal(cand1Exams.status, 200);
@@ -225,6 +240,7 @@ async function main() {
     const directRes = await admin.req('/api/admin/employees', {
       method: 'POST',
       body: {
+        accountType: 'candidate',
         fullName: 'Vikram Menon',
         email: 'vikram.menon@example.com',
         username: 'vikram.menon',
@@ -236,13 +252,15 @@ async function main() {
       },
     });
     assert.equal(directRes.status, 201);
+    assert.match(directRes.data.employee.employeeCode, /^CND-/);
     assert.equal(directRes.data.employee.assignedExams.length, 1);
 
     const cand2 = new Client();
-    await cand2.req('/api/auth/employee/login', {
+    const cand2Login = await cand2.req('/api/auth/candidate/login', {
       method: 'POST',
       body: { identifier: 'vikram.menon', password: 'DirectPass44!' },
     });
+    assert.equal(cand2Login.status, 200);
     const cand2Exams = await cand2.req('/api/portal/assessments');
     assert.equal(cand2Exams.data.assessments.length, 1);
     assert.equal(cand2Exams.data.assessments[0].id, exam2.id);
@@ -255,7 +273,27 @@ async function main() {
     const cand2ExamsUpdated = await cand2.req('/api/portal/assessments');
     assert.equal(cand2ExamsUpdated.data.assessments.length, 2);
 
-    console.log('✅ ALL CANDIDATE EXAM & ADMIN CONTROL E2E CHECKS PASSED!');
+    // 5. 1-CLICK PROMOTE CANDIDATE TO FULL EMPLOYEE WORKFORCE PORTAL
+    const promRes = await admin.req(
+      `/api/admin/employees/${issueRes.data.credentials.userId}/promote-to-employee`,
+      { method: 'POST' }
+    );
+    assert.equal(promRes.status, 200);
+    assert.match(promRes.data.employeeCode, /^EMP-/);
+
+    // Promoted Employee now signs into Employee Portal (/login) and accesses Overview & Guidelines!
+    const promotedEmp = new Client();
+    const empPortalLogin = await promotedEmp.req('/api/auth/employee/login', {
+      method: 'POST',
+      body: { identifier: issueRes.data.credentials.username, password: 'TempExamPass22!' },
+    });
+    assert.equal(empPortalLogin.status, 200);
+    assert.equal(empPortalLogin.data.user.accountType, 'employee');
+    assert.equal((await promotedEmp.req('/api/portal/overview')).status, 200);
+    assert.equal((await promotedEmp.req('/api/portal/guidelines')).status, 200);
+    assert.equal((await promotedEmp.req('/api/portal/readiness')).status, 200);
+
+    console.log('✅ ALL 3 PORTALS (CANDIDATE EXAM + EMPLOYEE WORKFORCE + ADMIN) E2E CHECKS PASSED!');
   } finally {
     proc.kill('SIGTERM');
     fs.rmSync(tmpDir, { recursive: true, force: true });

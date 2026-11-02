@@ -175,37 +175,87 @@ export default function PublicNavbar({ animateEntrance = false }) {
             </NavLink>
           </div>
 
-          <Link
-            to={user ? (user.role === 'admin' ? '/admin' : '/portal') : '/login'}
-            onClick={closeMenu}
-            className="vesper-nav-pill vesper-mobile-only-link"
-          >
-            {user ? (user.role === 'admin' ? 'Admin Console' : 'Exam Portal') : 'Exam Portal'}
-          </Link>
+          {user ? (
+            <Link
+              to={
+                user.role === 'admin'
+                  ? '/admin'
+                  : user.accountType === 'candidate'
+                  ? '/exam-portal'
+                  : '/portal'
+              }
+              onClick={closeMenu}
+              className="vesper-nav-pill vesper-mobile-only-link"
+            >
+              {user.role === 'admin'
+                ? 'Admin Console'
+                : user.accountType === 'candidate'
+                ? 'Exam Portal'
+                : 'Employee Portal'}
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/exam-login"
+                onClick={closeMenu}
+                className="vesper-nav-pill vesper-mobile-only-link"
+              >
+                Candidate Exam Portal
+              </Link>
+              <Link
+                to="/login"
+                onClick={closeMenu}
+                className="vesper-nav-pill vesper-mobile-only-link"
+              >
+                Employee Portal
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* Right — Portal Sign-In + Apply CTA */}
         <div className="vesper-header-right">
           {user ? (
             <Link
-              to={user.role === 'admin' ? '/admin' : '/portal'}
+              to={
+                user.role === 'admin'
+                  ? '/admin'
+                  : user.accountType === 'candidate'
+                  ? '/exam-portal'
+                  : '/portal'
+              }
               className={`vesper-btn vesper-btn-ghost${
                 animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
               }`}
               style={{ '--d': '0.54s' }}
             >
-              {user.role === 'admin' ? 'Admin Console' : 'Exam Portal'}
+              {user.role === 'admin'
+                ? 'Admin Console'
+                : user.accountType === 'candidate'
+                ? 'Exam Portal'
+                : 'Employee Portal'}
             </Link>
           ) : (
-            <Link
-              to="/login"
-              className={`vesper-btn vesper-btn-ghost${
-                animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
-              }`}
-              style={{ '--d': '0.54s' }}
-            >
-              Exam Portal
-            </Link>
+            <>
+              <Link
+                to="/exam-login"
+                className={`vesper-btn vesper-btn-ghost${
+                  animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
+                }`}
+                style={{ '--d': '0.50s' }}
+              >
+                Exam Portal
+              </Link>
+              <Link
+                to="/login"
+                className={`vesper-btn vesper-btn-ghost${
+                  animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
+                }`}
+                style={{ '--d': '0.56s' }}
+              >
+                Employee Login
+              </Link>
+            </>
           )}
 
           <Link

@@ -20,6 +20,7 @@ import {
   Sparkles,
   FileSpreadsheet,
   ClipboardCheck,
+  ArrowUpRight,
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api.js';
 
@@ -145,7 +146,9 @@ function parseBulkEmployeeText(rawText) {
   return parsed;
 }
 
-export default function AdminEmployees() {
+export default function AdminEmployees({ mode = 'employee' }) {
+  const isCandidateMode = mode === 'candidate';
+  const loginRoutePath = isCandidateMode ? '/exam-login' : '/login';
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('non_deleted');
@@ -209,6 +212,7 @@ export default function AdminEmployees() {
     try {
       const params = new URLSearchParams();
       params.set('status', statusFilter);
+      params.set('accountType', isCandidateMode ? 'candidate' : 'employee');
       if (searchQuery.trim()) params.set('q', searchQuery.trim());
       const [res, examsRes] = await Promise.all([
         apiRequest(`/api/admin/employees?${params.toString()}`),
@@ -217,15 +221,32 @@ export default function AdminEmployees() {
       setEmployees(res.employees || []);
       setAvailableExams((examsRes.assessments || []).filter((x) => x.status !== 'archived'));
     } catch (err) {
-      setBanner({ type: 'error', text: err.message || 'Unable to load employee accounts.' });
+      setBanner({ type: 'error', text: err.message || 'Unable to load accounts.' });
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, isCandidateMode]);
 
   useEffect(() => {
+    setProvisionedBatch(null);
+    setBanner(null);
     loadEmployees();
   }, [loadEmployees]);
+
+  const handlePromoteToEmployee = async (cand) => {
+    try {
+      const res = await apiRequest(`/api/admin/employees/${cand.id}/promote-to-employee`, {
+        method: 'POST',
+      });
+      setBanner({
+        type: 'success',
+        text: `Promoted ${res.fullName} (${res.oldCandidateCode} → ${res.employeeCode}) to full Employee Workforce Portal (/login)!`,
+      });
+      loadEmployees();
+    } catch (err) {
+      setBanner({ type: 'error', text: err.message || 'Unable to promote candidate.' });
+    }
+  };
 
   const handleOpenCreate = () => {
     setNewFullName('');
@@ -330,17 +351,17 @@ export default function AdminEmployees() {
   const handleDownloadCredentialsCsv = () => {
     if (!provisionedBatch?.created?.length) return;
     const dateStamp = new Date().toISOString().slice(0, 10);
-    const portalUrl = `${window.location.origin}/login`;
+    const portalUrl = `${window.location.origin}${loginRoutePath}`;
     downloadCsvFile(
-      `aisquare-provisioned-credentials-${dateStamp}.csv`,
+      `aisquare-${isCandidateMode ? 'candidate-exam' : 'employee'}-credentials-${dateStamp}.csv`,
       [
-        'Employee Code',
+        isCandidateMode ? 'Candidate ID' : 'Employee Code',
         'Full Name',
         'Email',
         'Username',
         'Temporary Password',
         'Team / Cohort Note',
-        'Employee Login URL',
+        'Portal Login URL',
       ],
       provisionedBatch.created.map((c) => [
         c.employeeCode,
@@ -356,11 +377,11 @@ export default function AdminEmployees() {
 
   const handleCopyCredentials = async () => {
     if (!provisionedBatch?.created?.length) return;
-    const portalUrl = `${window.location.origin}/login`;
+    const portalUrl = `${window.location.origin}${loginRoutePath}`;
     const text = provisionedBatch.created
       .map(
         (c) =>
-          `${c.employeeCode} | ${c.fullName} | Email: ${c.email} | Username: ${c.username} | Temp Password: ${c.temporaryPassword} | Login: ${portalUrl}`
+          `${c.employeeCode} | ${c.fullName} | Email: ${c.email} | Username: ${c.username} | Password: ${c.temporaryPassword} | Portal: ${portalUrl}`
       )
       .join('\n');
     try {
@@ -381,13 +402,14 @@ export default function AdminEmployees() {
       const res = await apiRequest('/api/admin/employees', {
         method: 'POST',
         body: {
+          accountType: isCandidateMode ? 'candidate' : 'employee',
           fullName: newFullName,
           email: newEmail,
           username: newUsername,
           password: pwdUsed,
           departmentNote: newDeptNote,
           mustChangePassword: mustChangePwd,
-          restrictToAssignedExams: true,
+          restrictToAssignedExams: isCandidateMode,
           assessmentIds: createExamIds,
         },
       });
@@ -424,6 +446,7 @@ export default function AdminEmployees() {
       const res = await apiRequest('/api/admin/employees/bulk', {
         method: 'POST',
         body: {
+          accountType: isCandidateMode ? 'candidate' : 'employee',
           rows: parsedBulkRows,
           defaultDepartmentNote: bulkDefaultNote,
           mustChangePassword: bulkMustChangePwd,
@@ -577,9 +600,13 @@ export default function AdminEmployees() {
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>Candidates &amp; Exam Logins</h1>
+          <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>
+            {isCandidateMode ? 'Candidate Exam Logins (/exam-portal)' : 'Employee Workforce (/portal)'}
+          </h1>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.92rem' }}>
-            Create candidate logins manually or via CSV, assign specific aptitude/evaluation exams, and manage access.
+            {isCandidateMode
+              ? 'Create logins for direct/off-website job candidates (CND-xxxx), assign screening exams, or promote passed candidates to full Employees.'
+              : 'Onboard hired AI Square evaluators (EMP-xxxx) for full Employee Portal access (Guidelines, Project Readiness, Assessments & Announcements).'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -591,11 +618,11 @@ export default function AdminEmployees() {
           )}
           <button type="button" className="btn btn-secondary" onClick={handleOpenBulk}>
             <Users size={16} />
-            Bulk Create &amp; Assign Exam
+            {isCandidateMode ? 'Bulk Create Candidates (CSV)' : 'Bulk Onboard Employees (CSV)'}
           </button>
           <button type="button" className="btn btn-primary" onClick={handleOpenCreate}>
             <UserPlus size={17} />
-            Create Login &amp; Assign Exam
+            {isCandidateMode ? 'Create Candidate & Assign Exam' : 'Create Employee Account'}
           </button>
         </div>
       </div>
@@ -825,6 +852,17 @@ export default function AdminEmployees() {
                           >
                             <ClipboardCheck size={14} />
                             Assign Exams ({emp.assignedExams?.length || 0})
+                          </button>
+                        )}
+                        {isCandidateMode && emp.status !== 'deleted' && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handlePromoteToEmployee(emp)}
+                            title="Promote candidate to full Employee Portal (EMP-xxxx)"
+                          >
+                            <ArrowUpRight size={14} />
+                            Promote to Employee
                           </button>
                         )}
                         <button

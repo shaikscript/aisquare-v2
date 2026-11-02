@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 
 import PublicLayout from './components/PublicLayout.jsx';
 import EmployeeLayout from './components/EmployeeLayout.jsx';
+import CandidateExamLayout from './components/CandidateExamLayout.jsx';
 import AdminLayout from './components/AdminLayout.jsx';
 
 import HomePage from './pages/public/HomePage.jsx';
@@ -14,11 +15,18 @@ import ContactPage from './pages/public/ContactPage.jsx';
 import PrivacyPage from './pages/public/PrivacyPage.jsx';
 import TermsPage from './pages/public/TermsPage.jsx';
 import EmployeeLoginPage from './pages/public/EmployeeLoginPage.jsx';
+import CandidateLoginPage from './pages/public/CandidateLoginPage.jsx';
 import NotFoundPage from './pages/public/NotFoundPage.jsx';
 
+import EmployeeDashboard from './pages/portal/EmployeeDashboard.jsx';
+import EmployeeGuidelines from './pages/portal/EmployeeGuidelines.jsx';
 import EmployeeAssessments from './pages/portal/EmployeeAssessments.jsx';
 import EmployeeAssessmentRunner from './pages/portal/EmployeeAssessmentRunner.jsx';
 import EmployeeResults from './pages/portal/EmployeeResults.jsx';
+import EmployeeReadiness from './pages/portal/EmployeeReadiness.jsx';
+import EmployeeAnnouncements from './pages/portal/EmployeeAnnouncements.jsx';
+import EmployeeNotifications from './pages/portal/EmployeeNotifications.jsx';
+import EmployeeFeedback from './pages/portal/EmployeeFeedback.jsx';
 
 import AdminLoginPage from './pages/admin/AdminLoginPage.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
@@ -163,23 +171,38 @@ export default function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
 
-            {/* 2. Standalone Aurora Split-Screen Auth Gateways */}
+            {/* 2. Standalone Aurora Split-Screen Auth Gateways (All 3 Portals) */}
+            <Route path="/exam-login" element={<CandidateLoginPage />} />
             <Route path="/login" element={<EmployeeLoginPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
 
-            {/* 3. Protected Candidate Exam Portal (Contains ONLY Exams & Results) */}
-            <Route path="/portal" element={<EmployeeLayout />}>
+            {/* 3. Portal #1 — Candidate Exam Portal (Contains STRICTLY ONLY Exams & Results) */}
+            <Route path="/exam-portal" element={<CandidateExamLayout />}>
               <Route index element={<EmployeeAssessments />} />
+              <Route path="take/:attemptId" element={<EmployeeAssessmentRunner />} />
+              <Route path="results" element={<EmployeeResults />} />
+              <Route path="*" element={<Navigate to="/exam-portal" replace />} />
+            </Route>
+
+            {/* 4. Portal #2 — Full Employee Workforce Portal (Guidelines, Readiness, Announcements, Exams, Feedback) */}
+            <Route path="/portal" element={<EmployeeLayout />}>
+              <Route index element={<EmployeeDashboard />} />
+              <Route path="guidelines" element={<EmployeeGuidelines />} />
               <Route path="assessments" element={<EmployeeAssessments />} />
               <Route path="assessments/take/:attemptId" element={<EmployeeAssessmentRunner />} />
               <Route path="results" element={<EmployeeResults />} />
+              <Route path="readiness" element={<EmployeeReadiness />} />
+              <Route path="announcements" element={<EmployeeAnnouncements />} />
+              <Route path="notifications" element={<EmployeeNotifications />} />
+              <Route path="feedback" element={<EmployeeFeedback />} />
               <Route path="*" element={<Navigate to="/portal" replace />} />
             </Route>
 
-            {/* 4. Protected Admin Portal (Admin Role Only) */}
+            {/* 5. Portal #3 — Admin Console (Controls BOTH Candidate Exam Portal & Employee Portal) */}
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
-              <Route path="employees" element={<AdminEmployees />} />
+              <Route path="candidates" element={<AdminEmployees mode="candidate" />} />
+              <Route path="employees" element={<AdminEmployees mode="employee" />} />
               <Route path="admins" element={<AdminManageAdmins />} />
               <Route path="guidelines" element={<AdminGuidelines />} />
               <Route path="assessments" element={<AdminAssessments />} />

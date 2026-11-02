@@ -115,6 +115,7 @@ function sanitizeUser(row) {
     email: row.email,
     username: row.username,
     role: row.role,
+    accountType: row.role === 'admin' ? 'admin' : row.account_type || 'employee',
     status: row.status,
     departmentNote: row.department_note,
     mustChangePassword: Boolean(row.must_change_password),
@@ -242,6 +243,13 @@ router.post('/employee/login', async (req, res) => {
     });
   }
 
+  if ((user.account_type || 'employee') === 'candidate') {
+    return res.status(403).json({
+      error: 'This login is for the Candidate Exam Portal. Please sign in at /exam-login to take your assigned screening exam.',
+      code: 'CANDIDATE_ACCOUNT',
+    });
+  }
+
   if (user.status !== 'active') {
     return res.status(403).json({
       error: 'Your employee account is currently deactivated. Please contact an AI Square IT Solutions administrator.',
@@ -255,6 +263,66 @@ router.post('/employee/login', async (req, res) => {
     eventType: 'EMPLOYEE_LOGIN',
     area: 'employee_portal',
     detail: 'Authenticated via Employee Login',
+  });
+
+  const refreshed = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  return res.json({ user: sanitizeUser(refreshed), sessionToken });
+});
+
+/**
+ * Candidate Exam Portal Login — strictly for active 'candidate' screening accounts.
+ */
+router.post('/candidate/login', async (req, res) => {
+  const identifier = String(req.body?.identifier || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'Please enter both your candidate username/email and password.' });
+  }
+
+  const user = db
+    .prepare(
+      `SELECT * FROM users
+       WHERE (LOWER(email) = ? OR LOWER(username) = ?)
+         AND status != 'deleted'`
+    )
+    .get(identifier, identifier);
+
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid candidate username/email or password.' });
+  }
+
+  const passwordValid = await verifyPassword(password, user.password_hash);
+  if (!passwordValid) {
+    return res.status(401).json({ error: 'Invalid candidate username/email or password.' });
+  }
+
+  if (user.role === 'admin') {
+    return res.status(403).json({
+      error: 'Administrators must sign in at the separate Admin Console (/admin/login).',
+    });
+  }
+
+  if ((user.account_type || 'employee') !== 'candidate') {
+    return res.status(403).json({
+      error: 'This is an active Employee Workforce account. Please sign in at the Employee Portal (/login).',
+      code: 'EMPLOYEE_ACCOUNT',
+    });
+  }
+
+  if (user.status !== 'active') {
+    return res.status(403).json({
+      error: 'Your candidate exam login is currently inactive. Please contact the recruitment team.',
+    });
+  }
+
+  const sessionToken = createUserSession(req, res, user.id);
+  recordPortalActivity({
+    userId: user.id,
+    userIdentity: `${user.full_name} (${user.employee_code})`,
+    eventType: 'CANDIDATE_EXAM_LOGIN',
+    area: 'candidate_exam_portal',
+    detail: 'Authenticated via Candidate Exam Portal Login',
   });
 
   const refreshed = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);

@@ -212,8 +212,11 @@ export default function PublicLayout() {
                 Workspaces
               </h4>
               <div style={{ display: 'grid', gap: 10, fontSize: '0.86rem' }}>
+                <Link to="/exam-login" style={{ color: '#ffffff', fontWeight: 500 }}>
+                  Candidate Exam Portal
+                </Link>
                 <Link to="/login" style={{ color: '#d8d8d8' }}>
-                  Evaluator Portal Sign In
+                  Employee Workforce Portal
                 </Link>
                 <Link to="/admin/login" style={{ color: '#9a9a9a' }}>
                   Administrator Console

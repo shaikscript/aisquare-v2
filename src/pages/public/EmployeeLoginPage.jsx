@@ -30,7 +30,9 @@ export default function EmployeeLoginPage() {
   const [showHelp, setShowHelp] = useState(false);
 
   if (!loading && user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/portal'} replace />;
+    if (user.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user.accountType === 'candidate') return <Navigate to="/exam-portal" replace />;
+    return <Navigate to="/portal" replace />;
   }
 
   const handleSubmit = async (e) => {
@@ -47,7 +49,7 @@ export default function EmployeeLoginPage() {
       await loginEmployee(identifier.trim(), password);
       navigate('/portal', { replace: true });
     } catch (err) {
-      setError(err.message || 'Sign-in failed. Please verify your credentials.');
+      setError(err.message || 'Sign-in failed. Please verify your employee credentials.');
     } finally {
       setSubmitting(false);
     }
@@ -55,8 +57,8 @@ export default function EmployeeLoginPage() {
 
   return (
     <main className="aurora-auth-main">
-      {/* Left Column — Pure Unfiltered Video + 3 Evaluator Workflow Steps (52% on lg) */}
-      <section className="aurora-left-hero" aria-label="Evaluator workspace overview">
+      {/* Left Column — Pure Unfiltered Video + 3 Employee Workflow Steps */}
+      <section className="aurora-left-hero" aria-label="Employee workspace overview">
         <video
           className="aurora-bg-video"
           autoPlay
@@ -80,27 +82,27 @@ export default function EmployeeLoginPage() {
           </Link>
 
           <div className="aurora-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
-            <h2 className="aurora-hero-title">Exam Portal</h2>
+            <h2 className="aurora-hero-title">Employee Portal</h2>
             <p className="aurora-hero-desc">
-              Complete your assigned aptitude &amp; AI evaluation assessment.
+              Guidelines, project readiness, qualification assessments, and workforce updates.
             </p>
           </div>
 
           <div className="aurora-steps-stack">
             <AuroraStepItem
               number="1"
-              text="Sign in with Admin-issued login"
+              text="Sign in with Employee credentials"
               active
               delay="0.42s"
             />
             <AuroraStepItem
               number="2"
-              text="Complete your assigned timed exam"
+              text="Study project rubrics & guidelines"
               delay="0.54s"
             />
             <AuroraStepItem
               number="3"
-              text="View results released by Admin"
+              text="Track readiness & announcements"
               delay="0.66s"
             />
           </div>
@@ -114,15 +116,15 @@ export default function EmployeeLoginPage() {
             <Link to="/" className="aurora-top-back">
               &larr; Back to AI Square
             </Link>
-            <Link to="/careers" className="aurora-top-back">
-              Apply on Careers &rarr;
+            <Link to="/exam-login" className="aurora-top-back">
+              Candidate Exam Portal &rarr;
             </Link>
           </div>
 
           <div style={{ marginBottom: 28 }}>
-            <h1 className="aurora-form-heading">Candidate Sign In</h1>
+            <h1 className="aurora-form-heading">Employee Sign In</h1>
             <p className="aurora-form-sub">
-              Enter the login credentials issued by AI Square Administration to start your assigned exam or check released results.
+              Sign in with your AI Square evaluator credentials (<code>EMP-xxxx</code>) to access guidelines, project readiness, assessments, and announcements.
             </p>
           </div>
 
@@ -172,7 +174,7 @@ export default function EmployeeLoginPage() {
                 </button>
               </div>
               <span className="aurora-helper-text">
-                Accounts are provisioned privately by AI Square administrators.
+                Taking a job application screening test? Use the <Link to="/exam-login" style={{ color: '#ffffff', textDecoration: 'underline' }}>Candidate Exam Portal</Link>.
               </span>
             </div>
 
@@ -181,12 +183,12 @@ export default function EmployeeLoginPage() {
               className="aurora-submit-btn"
               disabled={submitting}
             >
-              {submitting ? 'Signing In...' : 'Enter Evaluator Portal'}
+              {submitting ? 'Signing In...' : 'Enter Employee Portal'}
             </button>
           </form>
 
           <div className="aurora-divider">
-            <span>Workspace Access</span>
+            <span>Other Portals</span>
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -209,12 +211,20 @@ export default function EmployeeLoginPage() {
               Need password assistance?
             </button>
 
-            <Link
-              to="/admin/login"
-              style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.82rem' }}
-            >
-              Administrator Sign In &rarr;
-            </Link>
+            <div style={{ display: 'flex', gap: 14 }}>
+              <Link
+                to="/exam-login"
+                style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem' }}
+              >
+                Exam Portal &rarr;
+              </Link>
+              <Link
+                to="/admin/login"
+                style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.82rem' }}
+              >
+                Admin &rarr;
+              </Link>
+            </div>
           </div>
 
           {showHelp && (
@@ -230,8 +240,7 @@ export default function EmployeeLoginPage() {
                 lineHeight: 1.55,
               }}
             >
-              Contact your AI Square Team Lead or Administrator to issue a temporary password reset.
-              Looking to join? Apply on our <Link to="/careers" style={{ color: '#ffffff', textDecoration: 'underline' }}>Careers page</Link>.
+              Contact your AI Square Team Lead or Administrator to issue a password reset.
             </div>
           )}
         </div>

@@ -1251,6 +1251,7 @@ router.get('/attempts', (req, res) => {
       u.employee_code AS employeeCode,
       u.full_name AS employeeName,
       u.email AS employeeEmail,
+      COALESCE(u.account_type, 'employee') AS accountType,
       a.title AS assessmentTitle,
       a.passing_percentage AS passingPercentage
     FROM assessment_attempts att
@@ -1280,6 +1281,7 @@ router.get('/attempts', (req, res) => {
     assessmentId: r.assessment_id,
     assessmentTitle: r.assessmentTitle,
     userId: r.user_id,
+    accountType: r.accountType || 'employee',
     employeeCode: r.employeeCode,
     employeeName: r.employeeName,
     fullName: r.employeeName,

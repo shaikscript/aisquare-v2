@@ -71,7 +71,7 @@ export default function AdminAssessments() {
         apiRequest('/api/admin/assessments'),
         apiRequest('/api/admin/projects'),
         apiRequest('/api/admin/question-bank?status=active'),
-        apiRequest('/api/admin/employees?status=active'),
+        apiRequest('/api/admin/employees?status=active&accountType=all'),
       ]);
       setAssessments(assRes.assessments || []);
       setProjects(projRes.projects || []);
@@ -921,6 +921,9 @@ export default function AdminAssessments() {
                                 {cand.employeeCode} &bull; {cand.email}
                               </span>
                             </span>
+                          </span>
+                          <span className={`badge ${cand.accountType === 'candidate' ? 'badge-info' : 'badge-neutral'}`}>
+                            {cand.accountType === 'candidate' ? 'Candidate' : 'Employee'}
                           </span>
                         </label>
                       );

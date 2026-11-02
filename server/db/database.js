@@ -40,6 +40,7 @@ function ensureColumn(tableName, columnName, definitionSql) {
   }
 }
 
+ensureColumn('users', 'account_type', "TEXT NOT NULL DEFAULT 'employee'");
 ensureColumn('users', 'restrict_to_assigned_exams', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('users', 'source_application_id', 'INTEGER');
 ensureColumn('job_applications', 'candidate_user_id', 'INTEGER');
@@ -47,6 +48,8 @@ ensureColumn('assessments', 'assignment_mode', "TEXT NOT NULL DEFAULT 'all_activ
 ensureColumn('assessment_attempts', 'release_show_score', 'INTEGER NOT NULL DEFAULT 1');
 ensureColumn('assessment_attempts', 'release_show_pass_fail', 'INTEGER NOT NULL DEFAULT 1');
 ensureColumn('assessment_attempts', 'release_show_answers', 'INTEGER NOT NULL DEFAULT 1');
+
+db.exec("UPDATE users SET account_type = 'admin' WHERE role = 'admin' AND account_type != 'admin'");
 
 export function ensureBootstrapState() {
   const adminCountRow = db
@@ -119,7 +122,9 @@ export function createNotification({ userId, type, title, message, linkPath = nu
 
 export function notifyAllActiveEmployees({ type, title, message, linkPath = null }) {
   const activeEmployees = db
-    .prepare("SELECT id FROM users WHERE role = 'employee' AND status = 'active'")
+    .prepare(
+      "SELECT id FROM users WHERE role = 'employee' AND COALESCE(account_type, 'employee') = 'employee' AND status = 'active'"
+    )
     .all();
   const stmt = db.prepare(
     `INSERT INTO notifications (user_id, notification_type, title, message, link_path, is_read, created_at)
@@ -133,8 +138,9 @@ export function notifyAllActiveEmployees({ type, title, message, linkPath = null
   tx();
 }
 
-export function nextAccountCode(role) {
-  const prefix = role === 'admin' ? 'ADM' : 'EMP';
+export function nextAccountCode(roleOrType) {
+  const prefix =
+    roleOrType === 'admin' ? 'ADM' : roleOrType === 'candidate' ? 'CND' : 'EMP';
   const rows = db
     .prepare('SELECT employee_code FROM users WHERE employee_code LIKE ?')
     .all(`${prefix}-%`);

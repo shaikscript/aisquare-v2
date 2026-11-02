@@ -70,10 +70,10 @@ export default function AdminLayout() {
       ],
     },
     {
-      heading: 'Candidates & Access',
+      heading: 'Candidate Exam Portal',
       items: [
         { to: '/admin/applications', label: 'Job Applications', icon: Briefcase },
-        { to: '/admin/employees', label: 'Candidates & Logins', icon: Users },
+        { to: '/admin/candidates', label: 'Candidate Logins', icon: Users },
       ],
     },
     {
@@ -82,6 +82,15 @@ export default function AdminLayout() {
         { to: '/admin/assessments', label: 'Exams & Assignments', icon: ClipboardList },
         { to: '/admin/question-bank', label: 'Question Bank', icon: Database },
         { to: '/admin/results', label: 'Submissions & Results', icon: FileCheck2 },
+      ],
+    },
+    {
+      heading: 'Employee Portal',
+      items: [
+        { to: '/admin/employees', label: 'Employees (Workforce)', icon: Users },
+        { to: '/admin/guidelines', label: 'Guideline Library', icon: BookOpen },
+        { to: '/admin/readiness', label: 'Project Readiness', icon: CheckSquare },
+        { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
       ],
     },
     {

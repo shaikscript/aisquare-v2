@@ -9,6 +9,7 @@ import {
   AlertCircle,
   CheckCircle2,
   WifiOff,
+  ArrowUpRight,
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api.js';
 
@@ -141,13 +142,28 @@ export default function AdminResults() {
     setError('');
     try {
       await apiRequest(`/api/admin/attempts/${attemptId}/unrelease`, { method: 'POST' });
-      setNotice(`Result for Attempt #${attemptId} hidden from candidate view.`);
+      setNotice(`Result for Attempt #${attemptId} hidden from portal view.`);
       if (detail && detail.attempt.id === attemptId) {
         await openAttemptDetail(attemptId);
       }
       loadAttempts();
     } catch (err) {
       setError(err.message || 'Unable to hide result.');
+    }
+  };
+
+  const handlePromoteCandidate = async (att) => {
+    setError('');
+    try {
+      const res = await apiRequest(`/api/admin/employees/${att.userId}/promote-to-employee`, {
+        method: 'POST',
+      });
+      setNotice(
+        `Promoted ${res.fullName} (${res.oldCandidateCode} → ${res.employeeCode}) to full Employee Workforce Portal (/login)!`
+      );
+      loadAttempts();
+    } catch (err) {
+      setError(err.message || 'Unable to promote candidate to employee.');
     }
   };
 
@@ -230,7 +246,12 @@ export default function AdminResults() {
                   <tr key={att.id}>
                     <td>
                       <strong>{att.fullName}</strong>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{att.employeeCode}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{att.employeeCode}</span>
+                        <span className={`badge ${att.accountType === 'candidate' ? 'badge-info' : 'badge-neutral'}`} style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                          {att.accountType === 'candidate' ? 'Candidate' : 'Employee'}
+                        </span>
+                      </div>
                     </td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{att.assessmentTitle}</div>
@@ -284,6 +305,16 @@ export default function AdminResults() {
                         {att.isReleased && (
                           <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleUnrelease(att.id)}>
                             <EyeOff size={13} /> Hide Result
+                          </button>
+                        )}
+                        {att.accountType === 'candidate' && att.passed && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handlePromoteCandidate(att)}
+                            title="Promote passed candidate to full Employee Portal"
+                          >
+                            <ArrowUpRight size={13} /> Promote to Employee
                           </button>
                         )}
                         {att.status !== 'in_progress' && (

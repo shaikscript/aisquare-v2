@@ -32,7 +32,18 @@ router.get('/overview', (_req, res) => {
          COUNT(CASE WHEN status = 'deactivated' THEN 1 END) AS deactivated,
          COUNT(CASE WHEN status = 'deleted' THEN 1 END) AS archived
        FROM users
-       WHERE role = 'employee'`
+       WHERE role = 'employee' AND COALESCE(account_type, 'employee') = 'employee'`
+    )
+    .get();
+
+  const candidateStats = db
+    .prepare(
+      `SELECT
+         COUNT(CASE WHEN status != 'deleted' THEN 1 END) AS total,
+         COUNT(CASE WHEN status = 'active' THEN 1 END) AS active,
+         COUNT(CASE WHEN status = 'deactivated' THEN 1 END) AS deactivated
+       FROM users
+       WHERE role = 'employee' AND account_type = 'candidate'`
     )
     .get();
 
@@ -172,6 +183,11 @@ router.get('/overview', (_req, res) => {
       archived: employeeStats?.archived || 0,
       recentlyConnected: onlineSessions?.count || 0,
     },
+    candidates: {
+      total: candidateStats?.total || 0,
+      active: candidateStats?.active || 0,
+      deactivated: candidateStats?.deactivated || 0,
+    },
     admins: {
       active: adminCount?.count || 0,
     },
@@ -263,10 +279,17 @@ function syncUserExamAssignments(userId, rawAssessmentIds, adminUser, replaceExi
 
 router.get('/employees', (req, res) => {
   const statusFilter = String(req.query.status || 'non_deleted');
+  const accountTypeFilter = String(req.query.accountType || 'employee');
   const search = String(req.query.q || '').trim().toLowerCase();
 
   let whereClause = "u.role = 'employee'";
   const params = [];
+
+  if (accountTypeFilter === 'candidate') {
+    whereClause += " AND u.account_type = 'candidate'";
+  } else if (accountTypeFilter === 'employee') {
+    whereClause += " AND COALESCE(u.account_type, 'employee') = 'employee'";
+  }
 
   if (statusFilter === 'active' || statusFilter === 'deactivated' || statusFilter === 'deleted') {
     whereClause += ' AND u.status = ?';
@@ -290,6 +313,7 @@ router.get('/employees', (req, res) => {
          u.full_name AS fullName,
          u.email,
          u.username,
+         COALESCE(u.account_type, 'employee') AS accountType,
          u.status,
          u.department_note AS departmentNote,
          u.must_change_password AS mustChangePassword,
@@ -478,22 +502,23 @@ router.post('/employees', async (req, res) => {
   }
 
   const passwordHash = await hashPassword(password);
-  const employeeCode = nextAccountCode('employee');
+  const accountType = req.body?.accountType === 'candidate' ? 'candidate' : 'employee';
+  const employeeCode = nextAccountCode(accountType);
   const hasAssignmentParam = Array.isArray(req.body?.assessmentIds);
   const restrictFlag =
-    req.body?.restrictToAssignedExams !== undefined
+    accountType === 'candidate'
+      ? 1
+      : req.body?.restrictToAssignedExams !== undefined
       ? req.body.restrictToAssignedExams
         ? 1
         : 0
-      : hasAssignmentParam
-      ? 1
       : 0;
 
   const result = db
     .prepare(
       `INSERT INTO users
-        (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, restrict_to_assigned_exams, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, ?, ?, datetime('now'), datetime('now'))`
+        (employee_code, full_name, email, username, password_hash, role, account_type, status, department_note, must_change_password, restrict_to_assigned_exams, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'employee', ?, 'active', ?, ?, ?, ?, datetime('now'), datetime('now'))`
     )
     .run(
       employeeCode,
@@ -501,6 +526,7 @@ router.post('/employees', async (req, res) => {
       email,
       username,
       passwordHash,
+      accountType,
       departmentNote || null,
       mustChangePassword,
       restrictFlag,
@@ -515,14 +541,15 @@ router.post('/employees', async (req, res) => {
   recordAudit({
     adminId: req.user.id,
     adminIdentity: adminIdentityString(req.user),
-    action: 'EMPLOYEE_CREATED',
+    action: accountType === 'candidate' ? 'CANDIDATE_CREATED' : 'EMPLOYEE_CREATED',
     entityType: 'employee',
     entityId: newId,
-    summary: `Created candidate login ${employeeCode} for ${fullName} (${email})${
+    summary: `Created ${accountType} login ${employeeCode} for ${fullName} (${email})${
       assignedExams.length > 0 ? ` and assigned ${assignedExams.length} exam(s)` : ''
     }.`,
     after: {
       employeeCode,
+      accountType,
       fullName,
       email,
       username,
@@ -538,6 +565,7 @@ router.post('/employees', async (req, res) => {
     employee: {
       id: newId,
       employeeCode,
+      accountType,
       fullName,
       email,
       username,
@@ -550,6 +578,67 @@ router.post('/employees', async (req, res) => {
   });
 });
 
+/**
+ * POST /api/admin/employees/:id/promote-to-employee
+ * 1-Click Promotion: Upgrades a passed Candidate (CND-xxxx) into a full Employee (EMP-xxxx)
+ * with complete Employee Portal access (Guidelines, Readiness, Announcements, Feedback).
+ */
+router.post('/employees/:id/promote-to-employee', (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const cand = db
+    .prepare("SELECT * FROM users WHERE id = ? AND role = 'employee' AND status != 'deleted'")
+    .get(userId);
+  if (!cand) {
+    return res.status(404).json({ error: 'Candidate account not found.' });
+  }
+  if ((cand.account_type || 'employee') === 'employee') {
+    return res.json({
+      success: true,
+      alreadyEmployee: true,
+      employeeCode: cand.employee_code,
+    });
+  }
+
+  const oldCode = cand.employee_code;
+  const newEmpCode = nextAccountCode('employee');
+  const nextDept = String(req.body?.departmentNote || cand.department_note || '')
+    .replace(/^Applicant:\s*/i, 'Evaluator: ')
+    .trim();
+
+  db.prepare(
+    `UPDATE users
+     SET account_type = 'employee',
+         employee_code = ?,
+         restrict_to_assigned_exams = 0,
+         department_note = ?,
+         status = 'active',
+         updated_at = datetime('now')
+     WHERE id = ?`
+  ).run(newEmpCode, nextDept || null, userId);
+
+  if (cand.source_application_id) {
+    db.prepare(
+      "UPDATE job_applications SET status = 'Selected', updated_at = datetime('now') WHERE id = ?"
+    ).run(cand.source_application_id);
+  }
+
+  recordAudit({
+    adminId: req.user.id,
+    adminIdentity: adminIdentityString(req.user),
+    action: 'CANDIDATE_PROMOTED_TO_EMPLOYEE',
+    entityType: 'employee',
+    entityId: userId,
+    summary: `Promoted candidate ${cand.full_name} (${oldCode} -> ${newEmpCode}) to full Employee Workforce Portal.`,
+  });
+
+  return res.json({
+    success: true,
+    oldCandidateCode: oldCode,
+    employeeCode: newEmpCode,
+    fullName: cand.full_name,
+  });
+});
+
 router.put('/employees/:id/exams', (req, res) => {
   const empId = parseInt(req.params.id, 10);
   const emp = db
@@ -559,10 +648,13 @@ router.put('/employees/:id/exams', (req, res) => {
     return res.status(404).json({ error: 'Candidate account not found.' });
   }
 
+  const isCandidate = (emp.account_type || 'employee') === 'candidate';
   const assessmentIds = Array.isArray(req.body?.assessmentIds) ? req.body.assessmentIds : [];
-  db.prepare(
-    "UPDATE users SET restrict_to_assigned_exams = 1, updated_at = datetime('now') WHERE id = ?"
-  ).run(empId);
+  if (isCandidate) {
+    db.prepare(
+      "UPDATE users SET restrict_to_assigned_exams = 1, updated_at = datetime('now') WHERE id = ?"
+    ).run(empId);
+  }
 
   const assignedExams = syncUserExamAssignments(empId, assessmentIds, req.user, true);
 
@@ -723,26 +815,28 @@ router.post('/employees/bulk', async (req, res, next) => {
       });
     }
 
+    const batchAccountType = req.body?.accountType === 'candidate' ? 'candidate' : 'employee';
     const insertStmt = db.prepare(
       `INSERT INTO users
-        (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, restrict_to_assigned_exams, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, ?, ?, datetime('now'), datetime('now'))`
+        (employee_code, full_name, email, username, password_hash, role, account_type, status, department_note, must_change_password, restrict_to_assigned_exams, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'employee', ?, 'active', ?, ?, ?, ?, datetime('now'), datetime('now'))`
     );
 
     const hasBatchExams = Array.isArray(req.body?.assessmentIds);
     const batchExamIds = hasBatchExams ? req.body.assessmentIds : [];
-    const batchRestrict = hasBatchExams ? 1 : 0;
+    const batchRestrict = batchAccountType === 'candidate' ? 1 : 0;
 
     const created = [];
     const runBatch = db.transaction((items) => {
       for (const p of items) {
-        const employeeCode = nextAccountCode('employee');
+        const employeeCode = nextAccountCode(batchAccountType);
         const info = insertStmt.run(
           employeeCode,
           p.fullName,
           p.email,
           p.username,
           p.passwordHash,
+          batchAccountType,
           p.departmentNote,
           mustChangePassword,
           batchRestrict,
@@ -1312,14 +1406,14 @@ router.post('/applications/:id/issue-exam-login', async (req, res, next) => {
       }
 
       const passwordHash = await hashPassword(passwordPlain);
-      employeeCode = nextAccountCode('employee');
+      employeeCode = nextAccountCode('candidate');
       const mustChange = req.body?.mustChangePassword === true ? 1 : 0;
 
       const ins = db
         .prepare(
           `INSERT INTO users
-            (employee_code, full_name, email, username, password_hash, role, status, department_note, must_change_password, restrict_to_assigned_exams, source_application_id, created_by, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'employee', 'active', ?, ?, 1, ?, ?, datetime('now'), datetime('now'))`
+            (employee_code, full_name, email, username, password_hash, role, account_type, status, department_note, must_change_password, restrict_to_assigned_exams, source_application_id, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'employee', 'candidate', 'active', ?, ?, 1, ?, ?, datetime('now'), datetime('now'))`
         )
         .run(
           employeeCode,

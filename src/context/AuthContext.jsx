@@ -55,6 +55,18 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const loginCandidate = async (identifier, password) => {
+    const data = await apiRequest('/api/auth/candidate/login', {
+      method: 'POST',
+      body: { identifier, password },
+    });
+    if (data.sessionToken) {
+      setStoredSessionToken(data.sessionToken);
+    }
+    setUser(data.user);
+    return data.user;
+  };
+
   const loginAdmin = async (identifier, password) => {
     const data = await apiRequest('/api/auth/admin/login', {
       method: 'POST',
@@ -95,6 +107,7 @@ export function AuthProvider({ children }) {
         loading,
         refreshSession,
         loginEmployee,
+        loginCandidate,
         loginAdmin,
         bootstrapInitialAdmin,
         logout,

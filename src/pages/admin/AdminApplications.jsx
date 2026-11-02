@@ -357,7 +357,7 @@ export default function AdminApplications() {
                     Candidate Exam Login Ready — {issuedCredentialsCard.fullName} ({issuedCredentialsCard.employeeCode})
                   </strong>
                   <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                    Copy and share these credentials with the candidate so they can sign in at <code>/login</code> and take their assigned exam.
+                    Copy and share these credentials with the candidate so they can sign in at <code>/exam-login</code> and take their assigned exam.
                   </div>
                 </div>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setIssuedCredentialsCard(null)}>
@@ -366,7 +366,7 @@ export default function AdminApplications() {
               </div>
 
               <div className="neu-panel-inset" style={{ padding: 14, fontSize: '0.88rem', display: 'grid', gap: 6, marginBottom: 12 }}>
-                <div><strong>Exam Portal Sign-In:</strong> {window.location.origin}/login</div>
+                <div><strong>Candidate Exam Portal:</strong> {window.location.origin}/exam-login</div>
                 <div><strong>Email / Username:</strong> {issuedCredentialsCard.email} &nbsp;(or <code>{issuedCredentialsCard.username}</code>)</div>
                 {issuedCredentialsCard.password && (
                   <div><strong>Password:</strong> <code>{issuedCredentialsCard.password}</code></div>
@@ -384,9 +384,9 @@ export default function AdminApplications() {
                 className="btn btn-primary btn-sm"
                 onClick={() => {
                   const text = [
-                    `AI Square Exam Portal Invitation`,
+                    `AI Square Candidate Exam Portal Invitation`,
                     `Candidate: ${issuedCredentialsCard.fullName} (${issuedCredentialsCard.employeeCode})`,
-                    `Portal Login URL: ${window.location.origin}/login`,
+                    `Candidate Exam Portal URL: ${window.location.origin}/exam-login`,
                     `Username / Email: ${issuedCredentialsCard.username} (${issuedCredentialsCard.email})`,
                     issuedCredentialsCard.password ? `Password: ${issuedCredentialsCard.password}` : null,
                     `Assigned Exam(s): ${

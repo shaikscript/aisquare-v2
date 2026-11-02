@@ -1,8 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
+  LayoutDashboard,
+  BookOpen,
   ClipboardCheck,
   Award,
+  CheckSquare,
+  Megaphone,
+  Bell,
+  MessageSquare,
   LogOut,
   KeyRound,
   Globe,
@@ -21,7 +27,7 @@ import { usePortalTheme } from '../context/ThemeContext.jsx';
 import { apiRequest } from '../utils/api.js';
 
 function getInitials(name) {
-  return String(name || 'CA')
+  return String(name || 'EM')
     .trim()
     .split(/\s+/)
     .slice(0, 2)
@@ -37,6 +43,7 @@ export default function EmployeeLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const [activeAttempt, setActiveAttempt] = useState(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const isCosmic = portalTheme === 'cosmic';
 
@@ -45,6 +52,7 @@ export default function EmployeeLayout() {
     try {
       const status = await apiRequest('/api/portal/status');
       setActiveAttempt(status.activeAttempt || null);
+      setUnreadNotifications(status.unreadNotifications || 0);
     } catch {
       // Ignore transient status fetch error while offline during an exam
     }
@@ -66,7 +74,7 @@ export default function EmployeeLayout() {
         className={isCosmic ? 'cosmic-auth-stage' : ''}
         style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        <div className="neu-card-compact">Verifying candidate session...</div>
+        <div className="neu-card-compact">Verifying employee session...</div>
       </div>
     );
   }
@@ -75,27 +83,55 @@ export default function EmployeeLayout() {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  if (user.role !== 'employee') {
+  if (user.role === 'admin') {
     return <Navigate to="/admin" replace />;
   }
 
-  // Enforce active assessment navigation lock inside portal
+  // Strict Separation: Candidate Screening accounts belong in /exam-portal, not /portal
+  if (user.accountType === 'candidate') {
+    return <Navigate to="/exam-portal" replace />;
+  }
+
+  // Enforce active assessment navigation lock inside Employee Portal
   const expectedRunnerPath = activeAttempt ? `/portal/assessments/take/${activeAttempt.id}` : null;
   if (expectedRunnerPath && location.pathname !== expectedRunnerPath) {
     return <Navigate to={expectedRunnerPath} replace />;
   }
-
-  const isExamsActive =
-    location.pathname === '/portal' || location.pathname.startsWith('/portal/assessments');
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  const navGroups = [
+    {
+      title: 'Evaluator Workspace',
+      items: [
+        { to: '/portal', label: 'Overview', icon: LayoutDashboard, end: true },
+        { to: '/portal/guidelines', label: 'Guidelines Library', icon: BookOpen },
+        { to: '/portal/assessments', label: 'Assessments', icon: ClipboardCheck },
+        { to: '/portal/results', label: 'Released Results', icon: Award },
+        { to: '/portal/readiness', label: 'Project Readiness', icon: CheckSquare },
+      ],
+    },
+    {
+      title: 'Updates & Support',
+      items: [
+        { to: '/portal/announcements', label: 'Announcements', icon: Megaphone },
+        {
+          to: '/portal/notifications',
+          label: 'Notifications',
+          icon: Bell,
+          badge: unreadNotifications > 0 ? unreadNotifications : null,
+        },
+        { to: '/portal/feedback', label: 'Send Feedback', icon: MessageSquare },
+      ],
+    },
+  ];
+
   return (
     <div className={`portal-shell${isCosmic ? ' portal-theme-cosmic' : ''}`}>
-      <aside className={`portal-sidebar${sidebarOpen ? ' open' : ''}`} aria-label="Candidate exam portal navigation">
+      <aside className={`portal-sidebar${sidebarOpen ? ' open' : ''}`} aria-label="Employee portal navigation">
         <div
           style={{
             padding: '4px 10px 18px',
@@ -115,11 +151,11 @@ export default function EmployeeLayout() {
                   paddingLeft: 32,
                 }}
               >
-                EXAM PORTAL
+                EMPLOYEE PORTAL
               </span>
             </div>
           ) : (
-            <BrandLogo subtitle="EXAM PORTAL" compact />
+            <BrandLogo subtitle="EMPLOYEE PORTAL" compact />
           )}
         </div>
 
@@ -136,39 +172,42 @@ export default function EmployeeLayout() {
               }}
             >
               <Lock size={16} color="var(--accent-primary)" />
-              Active Exam Lock
+              Active Assessment Lock
             </div>
             <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              Portal navigation is locked while your timed assessment is in progress. Submit your exam to return to Results.
+              Guidelines and portal modules are locked while your assessment attempt is active. Submit your attempt to unlock navigation.
             </p>
           </div>
         ) : (
-          <nav style={{ flex: 1 }}>
-            <div style={{ marginBottom: 6 }}>
-              <div className="sidebar-section-label">Candidate Workspace</div>
-
-              <Link
-                to="/portal"
-                onClick={() => setSidebarOpen(false)}
-                className={`sidebar-nav-link${isExamsActive ? ' active' : ''}`}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  <ClipboardCheck size={16} />
-                  Assigned Exams
-                </span>
-              </Link>
-
-              <NavLink
-                to="/portal/results"
-                onClick={() => setSidebarOpen(false)}
-                className={({ isActive }) => `sidebar-nav-link${isActive ? ' active' : ''}`}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  <Award size={16} />
-                  My Results
-                </span>
-              </NavLink>
-            </div>
+          <nav style={{ flex: 1, overflowY: 'auto' }}>
+            {navGroups.map((group) => (
+              <div key={group.title} style={{ marginBottom: 6 }}>
+                <div className="sidebar-section-label">{group.title}</div>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) => `sidebar-nav-link${isActive ? ' active' : ''}`}
+                      style={{ justifyContent: 'space-between' }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                        <Icon size={16} />
+                        {item.label}
+                      </span>
+                      {item.badge && (
+                        <span className="badge badge-info" style={{ fontSize: '0.7rem', padding: '1px 7px' }}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         )}
 
@@ -225,7 +264,7 @@ export default function EmployeeLayout() {
                 {user.fullName}
               </div>
               <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                Candidate ID: <strong>{user.employeeCode}</strong> &bull; {user.email}
+                Employee ID: <strong>{user.employeeCode}</strong> &bull; {user.email}
               </div>
             </div>
           </div>
@@ -262,7 +301,7 @@ export default function EmployeeLayout() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <AlertTriangle size={18} />
                 <span>
-                  Please update your temporary password before starting your exam.
+                  Please update your temporary password to secure your employee workspace.
                 </span>
               </div>
               <button type="button" className="btn btn-primary btn-sm" onClick={() => setPwdModalOpen(true)}>

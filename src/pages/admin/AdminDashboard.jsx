@@ -101,14 +101,19 @@ export default function AdminDashboard() {
 
         <div className="neu-card-compact kpi-card animate-fade-up stagger-2">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>CANDIDATE LOGINS</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)' }}>CANDIDATE &amp; EMPLOYEE ACCOUNTS</span>
             <div className="kpi-icon-box"><Users size={17} /></div>
           </div>
-          <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{employees.active}</div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '6px 0 8px' }}>
-            {employees.recentlyConnected} active in portal &bull; {employees.deactivated} deactivated
+          <div style={{ fontSize: '1.95rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+            {data.candidates?.active ?? 0} / {employees.active}
           </div>
-          <Link to="/admin/employees" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Create Login / Assign Exam &rarr;</Link>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '6px 0 8px' }}>
+            {data.candidates?.active ?? 0} Exam Candidates &bull; {employees.active} Workforce Employees
+          </div>
+          <div style={{ display: 'flex', gap: 12, fontSize: '0.8rem', fontWeight: 600 }}>
+            <Link to="/admin/candidates">Candidates &rarr;</Link>
+            <Link to="/admin/employees">Employees &rarr;</Link>
+          </div>
         </div>
 
         <div className="neu-card-compact kpi-card animate-fade-up stagger-3">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useOutletContext } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   Clock,
   Play,
@@ -14,6 +14,11 @@ import { apiRequest } from '../../utils/api.js';
 
 export default function EmployeeAssessments() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isCandidatePortal = location.pathname.startsWith('/exam-portal');
+  const runnerPrefix = isCandidatePortal ? '/exam-portal/take' : '/portal/assessments/take';
+  const resultsPath = isCandidatePortal ? '/exam-portal/results' : '/portal/results';
+
   const { syncPortalStatus } = useOutletContext() || {};
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,13 +29,13 @@ export default function EmployeeAssessments() {
     setLoading(true);
     apiRequest('/api/portal/assessments')
       .then((res) => setAssessments(res.assessments || []))
-      .catch((err) => setError(err.message || 'Unable to load assigned exams.'))
+      .catch((err) => setError(err.message || 'Unable to load assessments.'))
       .finally(() => setLoading(false));
   }, []);
 
   const handleStartOrResume = async (assessment) => {
     if (assessment.inProgressAttemptId) {
-      navigate(`/portal/assessments/take/${assessment.inProgressAttemptId}`);
+      navigate(`${runnerPrefix}/${assessment.inProgressAttemptId}`);
       return;
     }
     setError('');
@@ -40,7 +45,7 @@ export default function EmployeeAssessments() {
         method: 'POST',
       });
       if (syncPortalStatus) await syncPortalStatus();
-      navigate(`/portal/assessments/take/${res.attemptId}`);
+      navigate(`${runnerPrefix}/${res.attemptId}`);
     } catch (err) {
       setError(err.message || 'Unable to start exam.');
     } finally {
@@ -61,13 +66,17 @@ export default function EmployeeAssessments() {
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.7rem', marginBottom: 4 }}>Assigned Exams</h1>
+          <h1 style={{ fontSize: '1.7rem', marginBottom: 4 }}>
+            {isCandidatePortal ? 'Assigned Exams' : 'Qualification Assessments'}
+          </h1>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.92rem' }}>
-            Complete the aptitude or AI evaluation exam(s) assigned to your account by an administrator.
+            {isCandidatePortal
+              ? 'Complete the screening or aptitude exam(s) assigned to your candidate login by an administrator.'
+              : 'Complete published project qualification and calibration assessments.'}
           </p>
         </div>
 
-        <Link to="/portal/results" className="btn btn-secondary btn-sm">
+        <Link to={resultsPath} className="btn btn-secondary btn-sm">
           <Award size={15} />
           View Released Results
         </Link>
@@ -204,7 +213,7 @@ export default function EmployeeAssessments() {
                     </strong>
                   </span>
                   <Link
-                    to="/portal/results"
+                    to={resultsPath}
                     style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.84rem' }}
                   >
                     Check Results &rarr;

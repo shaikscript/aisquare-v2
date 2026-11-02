@@ -17,6 +17,20 @@ const router = express.Router();
 router.use(requireRole('employee'));
 
 /**
+ * Strict Portal Separation: Candidate Exam Portal accounts (accountType === 'candidate')
+ * may ONLY access Exam & Result routes, never Employee Workforce modules.
+ */
+function requireEmployeeWorkforce(req, res, next) {
+  if (req.user?.accountType === 'candidate') {
+    return res.status(403).json({
+      error: 'Candidate Exam Portal accounts only have access to Assigned Exams and Results.',
+      code: 'CANDIDATE_RESTRICTED',
+    });
+  }
+  return next();
+}
+
+/**
  * Helper: check if employee currently has an active in-progress assessment attempt
  * (syncing any expired timed attempt first so an expired test never permanently locks navigation!).
  */
@@ -56,10 +70,10 @@ router.get('/status', (req, res) => {
  * GET /api/portal/overview
  * Complete Employee Dashboard overview (Section 6.2) — strictly isolated to req.user.id.
  */
-router.get('/overview', (req, res) => {
+router.get('/overview', requireEmployeeWorkforce, (req, res) => {
   const activeAttempt = getActiveInProgressAttempt(req.user.id);
 
-  // Available assessments (excluding future assessments!)
+  // Available assessments (excluding future & candidate-only assessments unless assigned!)
   const availableAssessments = db
     .prepare(
       `SELECT
@@ -68,16 +82,18 @@ router.get('/overview', (req, res) => {
          a.project_task_ref AS projectTaskRef,
          a.is_timed AS isTimed,
          a.time_limit_minutes AS timeLimitMinutes,
+         a.assignment_mode AS assignmentMode,
          p.name AS projectName
        FROM assessments a
        LEFT JOIN projects p ON p.id = a.project_id
        WHERE a.status = 'published'
          AND (a.available_from IS NULL OR a.available_from = '' OR datetime(a.available_from) <= datetime('now'))
          AND (a.available_until IS NULL OR a.available_until = '' OR datetime(a.available_until) >= datetime('now'))
-       ORDER BY a.created_at DESC
-       LIMIT 6`
+       ORDER BY a.created_at DESC`
     )
-    .all();
+    .all()
+    .filter((a) => isExamVisibleToCandidate(req.user.id, a, false))
+    .slice(0, 6);
 
   // Strictly RELEASED results only (Section 6.2 & 6.7)
   const recentReleasedResults = db
@@ -188,7 +204,7 @@ router.post('/heartbeat', (req, res) => {
  * PHASE 4: CENTRAL GUIDELINE LIBRARY (Employee Access — Section 6.3)
  * ========================================================================== */
 
-router.get('/guidelines', (req, res) => {
+router.get('/guidelines', requireEmployeeWorkforce, (req, res) => {
   const activeAttempt = getActiveInProgressAttempt(req.user.id);
   if (activeAttempt) {
     return res.status(409).json({
@@ -231,7 +247,7 @@ router.get('/guidelines', (req, res) => {
   return res.json({ guidelines });
 });
 
-router.get('/guidelines/:id', (req, res) => {
+router.get('/guidelines/:id', requireEmployeeWorkforce, (req, res) => {
   const activeAttempt = getActiveInProgressAttempt(req.user.id);
   if (activeAttempt) {
     return res.status(409).json({
@@ -286,7 +302,7 @@ router.get('/guidelines/:id', (req, res) => {
   });
 });
 
-router.post('/guidelines/access/:accessLogId/ping', (req, res) => {
+router.post('/guidelines/access/:accessLogId/ping', requireEmployeeWorkforce, (req, res) => {
   const logId = parseInt(req.params.accessLogId, 10);
   const incrementSec = Math.min(60, Math.max(1, Number(req.body?.seconds || 15)));
 
@@ -299,7 +315,7 @@ router.post('/guidelines/access/:accessLogId/ping', (req, res) => {
   return res.json({ ok: true });
 });
 
-router.get('/guidelines/:id/pdf', (req, res) => {
+router.get('/guidelines/:id/pdf', requireEmployeeWorkforce, (req, res) => {
   const activeAttempt = getActiveInProgressAttempt(req.user.id);
   if (activeAttempt) {
     return res.status(409).json({ error: 'Restricted during active assessment.' });
@@ -352,9 +368,10 @@ router.get('/assessments', (req, res) => {
   getActiveInProgressAttempt(req.user.id);
 
   const userRow = db
-    .prepare('SELECT restrict_to_assigned_exams FROM users WHERE id = ?')
+    .prepare('SELECT account_type, restrict_to_assigned_exams FROM users WHERE id = ?')
     .get(req.user.id);
-  const restrictToAssigned = Boolean(userRow?.restrict_to_assigned_exams);
+  const restrictToAssigned =
+    Boolean(userRow?.restrict_to_assigned_exams) || userRow?.account_type === 'candidate';
 
   const rawAssessments = db
     .prepare(
@@ -480,9 +497,10 @@ router.post('/assessments/:id/start', (req, res) => {
   }
 
   const userRow = db
-    .prepare('SELECT restrict_to_assigned_exams FROM users WHERE id = ?')
+    .prepare('SELECT account_type, restrict_to_assigned_exams FROM users WHERE id = ?')
     .get(req.user.id);
-  const restrictToAssigned = Boolean(userRow?.restrict_to_assigned_exams);
+  const restrictToAssigned =
+    Boolean(userRow?.restrict_to_assigned_exams) || userRow?.account_type === 'candidate';
   if (!isExamVisibleToCandidate(req.user.id, assessment, restrictToAssigned)) {
     return res.status(403).json({
       error: 'This exam has not been assigned to your candidate account by an administrator.',
@@ -1104,7 +1122,7 @@ router.get('/results', (req, res) => {
  * PHASE 6: EMPLOYEE PROJECT READINESS (Section 6.8)
  * ========================================================================== */
 
-router.get('/readiness', (req, res) => {
+router.get('/readiness', requireEmployeeWorkforce, (req, res) => {
   const projects = db
     .prepare("SELECT * FROM projects WHERE status = 'active' ORDER BY name ASC")
     .all();
@@ -1190,7 +1208,7 @@ router.get('/readiness', (req, res) => {
  * PHASE 7: ANNOUNCEMENTS, NOTIFICATIONS & IDENTIFIED FEEDBACK (Sections 6.9–6.10)
  * ========================================================================== */
 
-router.get('/announcements', (_req, res) => {
+router.get('/announcements', requireEmployeeWorkforce, (_req, res) => {
   const announcements = db
     .prepare(
       `SELECT id, title, category, body, author_identity AS authorIdentity,
@@ -1204,7 +1222,7 @@ router.get('/announcements', (_req, res) => {
   return res.json({ announcements });
 });
 
-router.get('/notifications', (req, res) => {
+router.get('/notifications', requireEmployeeWorkforce, (req, res) => {
   const notifications = db
     .prepare(
       `SELECT id, notification_type AS type, title, message, link_path AS linkPath,
@@ -1220,7 +1238,7 @@ router.get('/notifications', (req, res) => {
   return res.json({ notifications });
 });
 
-router.post('/notifications/:id/read', (req, res) => {
+router.post('/notifications/:id/read', requireEmployeeWorkforce, (req, res) => {
   const nid = parseInt(req.params.id, 10);
   db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(
     nid,
@@ -1229,12 +1247,12 @@ router.post('/notifications/:id/read', (req, res) => {
   return res.json({ ok: true });
 });
 
-router.post('/notifications/read-all', (req, res) => {
+router.post('/notifications/read-all', requireEmployeeWorkforce, (req, res) => {
   db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(req.user.id);
   return res.json({ ok: true });
 });
 
-router.get('/feedback', (req, res) => {
+router.get('/feedback', requireEmployeeWorkforce, (req, res) => {
   const items = db
     .prepare(
       `SELECT id, category, subject, message, status, admin_response AS adminResponse,
@@ -1248,7 +1266,7 @@ router.get('/feedback', (req, res) => {
   return res.json({ feedback: items });
 });
 
-router.post('/feedback', (req, res) => {
+router.post('/feedback', requireEmployeeWorkforce, (req, res) => {
   const allowedCategories = new Set([
     'Guideline Problem',
     'Assessment Concern',

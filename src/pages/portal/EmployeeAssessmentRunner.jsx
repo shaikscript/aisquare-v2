@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useLocation, useOutletContext, useParams } from 'react-router-dom';
 import {
   Clock,
   CheckCircle2,
@@ -22,6 +22,10 @@ function formatSeconds(sec) {
 
 export default function EmployeeAssessmentRunner() {
   const { attemptId } = useParams();
+  const location = useLocation();
+  const isCandidatePortal = location.pathname.startsWith('/exam-portal');
+  const resultsPath = isCandidatePortal ? '/exam-portal/results' : '/portal/results';
+  const examsHomePath = isCandidatePortal ? '/exam-portal' : '/portal/assessments';
   const { syncPortalStatus } = useOutletContext() || {};
 
   const [loading, setLoading] = useState(true);
@@ -299,11 +303,11 @@ export default function EmployeeAssessmentRunner() {
         </p>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <Link to="/portal/results" className="btn btn-primary">
+          <Link to={resultsPath} className="btn btn-primary">
             Go to My Results
           </Link>
-          <Link to="/portal" className="btn btn-secondary">
-            Back to Assigned Exams
+          <Link to={examsHomePath} className="btn btn-secondary">
+            {isCandidatePortal ? 'Back to Assigned Exams' : 'Back to Assessments'}
           </Link>
         </div>
       </div>
