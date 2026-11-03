@@ -1,0 +1,4485 @@
+From fb1a38e55f2750f1074d014f0bb79c3b1beeff2e Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:45:59 +0000
+Subject: [PATCH 1/9] chore: remove unused placeholder module and spec
+ references
+
+---
+ server/db/database.js                         |  2 +-
+ server/db/schema.sql                          |  8 +--
+ server/index.js                               |  2 +-
+ server/middleware/auth.js                     |  6 +-
+ server/routes/admin.js                        |  2 +-
+ server/routes/adminPlatform.js                | 12 ++--
+ server/routes/portal.js                       | 14 ++---
+ server/scripts/provision.js                   |  2 +-
+ server/utils/assessmentEngine.js              |  6 +-
+ src/components/IncompletePhaseModule.jsx      | 59 -------------------
+ src/context/ThemeContext.jsx                  |  6 +-
+ src/pages/admin/AdminResults.jsx              |  2 +-
+ src/pages/portal/EmployeeAssessmentRunner.jsx |  2 +-
+ src/pages/portal/EmployeeGuidelines.jsx       |  2 +-
+ src/utils/mapHelper.js                        |  2 +-
+ 15 files changed, 34 insertions(+), 93 deletions(-)
+ delete mode 100644 src/components/IncompletePhaseModule.jsx
+
+diff --git a/server/db/database.js b/server/db/database.js
+index 9068fa0..96e74db 100644
+--- a/server/db/database.js
++++ b/server/db/database.js
+@@ -32,7 +32,7 @@ db.pragma('foreign_keys = ON');
+ const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+ db.exec(schemaSql);
+ 
+-// Safe idempotent column migrations for v2 Candidate Exam & Result Control
++// Idempotent column migrations for candidate exams and result release settings
+ function ensureColumn(tableName, columnName, definitionSql) {
+   const cols = db.prepare(`PRAGMA table_info(${tableName})`).all();
+   if (!cols.some((c) => c.name === columnName)) {
+diff --git a/server/db/schema.sql b/server/db/schema.sql
+index 4df74bd..8125d49 100644
+--- a/server/db/schema.sql
++++ b/server/db/schema.sql
+@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS portal_activity_logs (
+ CREATE INDEX IF NOT EXISTS idx_portal_activity_user_id ON portal_activity_logs(user_id, created_at DESC);
+ 
+ /* ============================================================================
+- * PHASE 4: CENTRAL GUIDELINE LIBRARY & VERSIONING
++ * Guideline library and versioning
+  * ========================================================================== */
+ CREATE TABLE IF NOT EXISTS guidelines (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS guideline_access_logs (
+ CREATE INDEX IF NOT EXISTS idx_guideline_access_user ON guideline_access_logs(user_id, opened_at DESC);
+ 
+ /* ============================================================================
+- * PHASE 6 (FOUNDATIONAL PROJECT REGISTRY) & PHASE 5 (ASSESSMENTS & BANK)
++ * Projects, assessments, and question bank
+  * ========================================================================== */
+ CREATE TABLE IF NOT EXISTS projects (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+@@ -344,7 +344,7 @@ CREATE TABLE IF NOT EXISTS retake_authorizations (
+ );
+ 
+ /* ============================================================================
+- * PHASE 6: PROJECT READINESS REQUIREMENTS & DECISION HISTORY
++ * Project readiness requirements and decision history
+  * ========================================================================== */
+ CREATE TABLE IF NOT EXISTS project_assessments (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+@@ -381,7 +381,7 @@ CREATE TABLE IF NOT EXISTS project_readiness_history (
+ );
+ 
+ /* ============================================================================
+- * PHASE 7: ANNOUNCEMENTS, NOTIFICATIONS & IDENTIFIED FEEDBACK
++ * Announcements, notifications, and feedback
+  * ========================================================================== */
+ CREATE TABLE IF NOT EXISTS announcements (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+diff --git a/server/index.js b/server/index.js
+index 57114f6..12220ba 100644
+--- a/server/index.js
++++ b/server/index.js
+@@ -90,7 +90,7 @@ async function startServer() {
+   const bundleDir = path.join(ROOT_DIR, 'client_bundle');
+ 
+   if (isProd && fs.existsSync(bundleDir)) {
+-    // Serve gzip-compressed JS/CSS bundles; if an older hashed JS bundle is requested, serve current JS bundle seamlessly
++    // Serve gzip-compressed JS/CSS bundles; fall back to the current hashed bundle for stale asset paths.
+     app.get('/assets/:file', (req, res, next) => {
+       const safeName = path.basename(req.params.file);
+       const assetsDir = path.join(bundleDir, 'assets');
+diff --git a/server/middleware/auth.js b/server/middleware/auth.js
+index 4eaf590..4855805 100644
+--- a/server/middleware/auth.js
++++ b/server/middleware/auth.js
+@@ -16,7 +16,7 @@ export function extractCandidateSessionTokens(req) {
+     }
+   };
+ 
+-  // 1. Custom application header (never stripped or overwritten by reverse/sandbox proxies)
++  // 1. Custom application header for embedded clients
+   const customHeader = req.headers?.['x-aisquare-session'];
+   if (Array.isArray(customHeader)) {
+     customHeader.forEach(pushToken);
+@@ -24,7 +24,7 @@ export function extractCandidateSessionTokens(req) {
+     pushToken(customHeader);
+   }
+ 
+-  // 2. Explicit query parameter fallback (_sid / sid) — immune to all header/cookie stripping
++  // 2. Query parameter fallback (_sid / sid) for clients that cannot send headers or cookies
+   pushToken(req.query?._sid);
+   pushToken(req.query?.sid);
+ 
+@@ -34,7 +34,7 @@ export function extractCandidateSessionTokens(req) {
+     pushToken(authHeader.slice(7));
+   }
+ 
+-  // 4. Standard HttpOnly cookie (standalone domain / first-party tab)
++  // 4. Standard HttpOnly cookie
+   pushToken(req.cookies?.[SESSION_COOKIE_NAME]);
+ 
+   return candidates;
+diff --git a/server/routes/admin.js b/server/routes/admin.js
+index 673041e..89d4c0e 100644
+--- a/server/routes/admin.js
++++ b/server/routes/admin.js
+@@ -1043,7 +1043,7 @@ router.delete('/employees/:id', (req, res) => {
+     return res.status(404).json({ error: 'Employee account not found or already deleted.' });
+   }
+ 
+-  // Soft-delete / archive so historical assessment & audit records remain intact (Section 7.3)
++  // Soft-delete/archive to preserve assessment and audit history.
+   const archivedEmail = `${existing.email}.deleted.${empId}`;
+   const archivedUsername = `${existing.username}.deleted.${empId}`;
+ 
+diff --git a/server/routes/adminPlatform.js b/server/routes/adminPlatform.js
+index 83e8ff9..a72d62f 100644
+--- a/server/routes/adminPlatform.js
++++ b/server/routes/adminPlatform.js
+@@ -44,7 +44,7 @@ const uploadGuidelinePdf = multer({
+ });
+ 
+ /* ============================================================================
+- * PHASE 4: GUIDELINE ADMINISTRATION (Section 7.4)
++ * Guideline administration
+  * ========================================================================== */
+ 
+ router.get('/guidelines', (req, res) => {
+@@ -424,7 +424,7 @@ router.get('/guidelines/versions/:versionId/pdf', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 5: REUSABLE QUESTION BANK & BULK IMPORT (Section 7.6)
++ * Question bank and bulk import
+  * ========================================================================== */
+ 
+ router.get('/question-bank', (req, res) => {
+@@ -690,7 +690,7 @@ router.post('/question-bank/bulk-import', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 5: FLEXIBLE ASSESSMENT CREATOR (Sections 7.5 & 7.7)
++ * Assessment creator
+  * ========================================================================== */
+ 
+ router.get('/assessments', (_req, res) => {
+@@ -1233,7 +1233,7 @@ router.post('/assessments/seed-templates', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 5: ATTEMPTS, MANUAL REVIEW, RESULT RELEASE & RETAKES (Sections 7.8–7.10)
++ * Attempts, manual review, result release, and retakes
+  * ========================================================================== */
+ 
+ router.get('/attempts', (req, res) => {
+@@ -1669,7 +1669,7 @@ router.post('/retakes', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 6: PROJECT READINESS MANAGEMENT (Section 7.11)
++ * Project readiness management
+  * ========================================================================== */
+ 
+ router.get('/projects', (_req, res) => {
+@@ -1971,7 +1971,7 @@ router.post('/readiness/decision', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 7: ANNOUNCEMENTS & EMPLOYEE FEEDBACK MANAGEMENT (Sections 7.13–7.14)
++ * Announcements and employee feedback management
+  * ========================================================================== */
+ 
+ router.get('/announcements', (_req, res) => {
+diff --git a/server/routes/portal.js b/server/routes/portal.js
+index f86f8d7..0142fc3 100644
+--- a/server/routes/portal.js
++++ b/server/routes/portal.js
+@@ -68,7 +68,7 @@ router.get('/status', (req, res) => {
+ 
+ /**
+  * GET /api/portal/overview
+- * Complete Employee Dashboard overview (Section 6.2) — strictly isolated to req.user.id.
++ * Employee dashboard overview, scoped to req.user.id.
+  */
+ router.get('/overview', requireEmployeeWorkforce, (req, res) => {
+   const activeAttempt = getActiveInProgressAttempt(req.user.id);
+@@ -95,7 +95,7 @@ router.get('/overview', requireEmployeeWorkforce, (req, res) => {
+     .filter((a) => isExamVisibleToCandidate(req.user.id, a, false))
+     .slice(0, 6);
+ 
+-  // Strictly RELEASED results only (Section 6.2 & 6.7)
++  // Released results only
+   const recentReleasedResults = db
+     .prepare(
+       `SELECT
+@@ -201,7 +201,7 @@ router.post('/heartbeat', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 4: CENTRAL GUIDELINE LIBRARY (Employee Access — Section 6.3)
++ * Guideline library (employee access)
+  * ========================================================================== */
+ 
+ router.get('/guidelines', requireEmployeeWorkforce, (req, res) => {
+@@ -344,7 +344,7 @@ router.get('/guidelines/:id/pdf', requireEmployeeWorkforce, (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 5: EMPLOYEE ASSESSMENTS & ATTEMPT RUNNER (Sections 6.4–6.7)
++ * Employee assessments and attempt runner
+  * ========================================================================== */
+ 
+ function isExamVisibleToCandidate(userId, assessmentRow, restrictToAssigned) {
+@@ -997,7 +997,7 @@ router.post('/attempts/:attemptId/submit', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 5: EMPLOYEE RELEASED RESULTS & HISTORY (Section 6.7)
++ * Employee released results and history
+  * ========================================================================== */
+ 
+ router.get('/results', (req, res) => {
+@@ -1119,7 +1119,7 @@ router.get('/results', (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 6: EMPLOYEE PROJECT READINESS (Section 6.8)
++ * Employee project readiness
+  * ========================================================================== */
+ 
+ router.get('/readiness', requireEmployeeWorkforce, (req, res) => {
+@@ -1205,7 +1205,7 @@ router.get('/readiness', requireEmployeeWorkforce, (req, res) => {
+ });
+ 
+ /* ============================================================================
+- * PHASE 7: ANNOUNCEMENTS, NOTIFICATIONS & IDENTIFIED FEEDBACK (Sections 6.9–6.10)
++ * Announcements, notifications, and feedback
+  * ========================================================================== */
+ 
+ router.get('/announcements', requireEmployeeWorkforce, (_req, res) => {
+diff --git a/server/scripts/provision.js b/server/scripts/provision.js
+index fcf6403..d9f9be9 100644
+--- a/server/scripts/provision.js
++++ b/server/scripts/provision.js
+@@ -1,5 +1,5 @@
+ /**
+- * Secure CLI Account Provisioning Tool (Zero hardcoded passwords in application code).
++ * CLI account provisioning.
+  * Usage:
+  *   node server/scripts/provision.js --role=admin --name="System Administrator" --email="admin@aisquare.local" --username="admin" --password="..."
+  */
+diff --git a/server/utils/assessmentEngine.js b/server/utils/assessmentEngine.js
+index 0f69b35..0f651ab 100644
+--- a/server/utils/assessmentEngine.js
++++ b/server/utils/assessmentEngine.js
+@@ -177,7 +177,7 @@ export function finalizeAttemptInternal(attemptId, { expired = false } = {}) {
+         ? null
+         : Number(((autoScoreSum / totalPossible) * 100).toFixed(2));
+ 
+-    // Per Section 6.6: Expired attempts NEVER qualify as a pass!
++    // Expired attempts cannot pass.
+     let passed = null;
+     if (!needsManualReview) {
+       passed = expired ? 0 : percentage >= Number(attempt.passing_percentage) ? 1 : 0;
+@@ -282,7 +282,7 @@ export function recalculateAttemptScoreAfterReview(attemptId) {
+ 
+   let passed = null;
+   if (attempt.status === 'expired') {
+-    passed = 0; // Expired attempt can never qualify as a pass (Section 6.6)
++    passed = 0; // Expired attempts cannot pass
+   } else if (allGraded && percentage !== null) {
+     passed = percentage >= Number(attempt.passing_percentage) ? 1 : 0;
+   }
+@@ -311,7 +311,7 @@ export function recalculateAttemptScoreAfterReview(attemptId) {
+ }
+ 
+ /**
+- * Evaluate project-specific readiness ONLY for projects associated with this assessment (Phase 6).
++ * Evaluate readiness only for projects associated with this assessment.
+  * Never grants blanket readiness across unrelated projects!
+  */
+ export function evaluateProjectReadinessForEmployee(userId, assessmentId, actorIdentity) {
+diff --git a/src/components/IncompletePhaseModule.jsx b/src/components/IncompletePhaseModule.jsx
+deleted file mode 100644
+index 6652739..0000000
+--- a/src/components/IncompletePhaseModule.jsx
++++ /dev/null
+@@ -1,59 +0,0 @@
+-import React from 'react';
+-import { Link } from 'react-router-dom';
+-import { Clock, ArrowLeft, ShieldCheck } from 'lucide-react';
+-
+-/**
+- * Transparent module status view for Phase 4–7 routes.
+- * Per Section 9: "Do not use fabricated client-side data as if it were securely saved production data.
+- * If a feature is not yet connected to persistent storage, clearly identify it as incomplete."
+- */
+-export default function IncompletePhaseModule({
+-  title,
+-  phase,
+-  areaLabel,
+-  summary,
+-  plannedCapabilities = [],
+-  backPath,
+-  backLabel,
+-}) {
+-  return (
+-    <div>
+-      <div style={{ marginBottom: 22 }}>
+-        <span className="badge badge-warn" style={{ marginBottom: 10 }}>
+-          <Clock size={13} />
+-          Incomplete — Scheduled for {phase}
+-        </span>
+-        <h1 style={{ fontSize: '1.75rem', marginBottom: 6 }}>{title}</h1>
+-        <p style={{ margin: 0, color: 'var(--text-muted)', maxWidth: 740 }}>{summary}</p>
+-      </div>
+-
+-      <div className="alert alert-info" role="status">
+-        <ShieldCheck size={20} style={{ flexShrink: 0, marginTop: 2 }} />
+-        <div>
+-          <strong>Status Transparency Notice ({areaLabel}):</strong> This route and role-based permission
+-          boundary are active and verified in Phase 3, while persistent database tables and workflows for{' '}
+-          <strong>{title}</strong> are scheduled for <strong>{phase}</strong>. No fabricated or placeholder
+-          records are displayed.
+-        </div>
+-      </div>
+-
+-      <div className="neu-card" style={{ marginTop: 20 }}>
+-        <h2 style={{ fontSize: '1.15rem', marginBottom: 14 }}>
+-          Planned {phase} Capabilities for This Section
+-        </h2>
+-        <ul style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 8, color: 'var(--text-body)' }}>
+-          {plannedCapabilities.map((item, idx) => (
+-            <li key={idx}>{item}</li>
+-          ))}
+-        </ul>
+-
+-        <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #d5e0ee' }}>
+-          <Link to={backPath} className="btn btn-secondary">
+-            <ArrowLeft size={16} />
+-            {backLabel}
+-          </Link>
+-        </div>
+-      </div>
+-    </div>
+-  );
+-}
+diff --git a/src/context/ThemeContext.jsx b/src/context/ThemeContext.jsx
+index 59e1d4c..1d12415 100644
+--- a/src/context/ThemeContext.jsx
++++ b/src/context/ThemeContext.jsx
+@@ -13,7 +13,7 @@ function readInitialTheme() {
+         return saved;
+       }
+     } catch {
+-      // Ignore iframe storage restrictions
++      // Storage may be unavailable; fall back to memory
+     }
+   }
+   return 'cosmic';
+@@ -36,7 +36,7 @@ export function ThemeProvider({ children }) {
+       try {
+         window.localStorage?.setItem(THEME_STORAGE_KEY, resolved);
+       } catch {
+-        // Ignore iframe storage restrictions
++        // Storage may be unavailable; fall back to memory
+       }
+     }
+   }, []);
+@@ -49,7 +49,7 @@ export function ThemeProvider({ children }) {
+         try {
+           window.localStorage?.setItem(THEME_STORAGE_KEY, next);
+         } catch {
+-          // Ignore iframe storage restrictions
++          // Storage may be unavailable; fall back to memory
+         }
+       }
+       return next;
+diff --git a/src/pages/admin/AdminResults.jsx b/src/pages/admin/AdminResults.jsx
+index 13eaaa3..2a8053b 100644
+--- a/src/pages/admin/AdminResults.jsx
++++ b/src/pages/admin/AdminResults.jsx
+@@ -611,7 +611,7 @@ export default function AdminResults() {
+                 <label className="form-label">Retake Conditions / Preparation Note (Optional)</label>
+                 <textarea
+                   className="neu-textarea"
+-                  placeholder="e.g., Review Guideline v2 Section 3 before starting your retake."
++                  placeholder="e.g., Review the assigned guideline before starting your retake."
+                   value={retakeConditions}
+                   onChange={(e) => setRetakeConditions(e.target.value)}
+                 />
+diff --git a/src/pages/portal/EmployeeAssessmentRunner.jsx b/src/pages/portal/EmployeeAssessmentRunner.jsx
+index aa63ebd..8c6e946 100644
+--- a/src/pages/portal/EmployeeAssessmentRunner.jsx
++++ b/src/pages/portal/EmployeeAssessmentRunner.jsx
+@@ -130,7 +130,7 @@ export default function EmployeeAssessmentRunner() {
+     [attempt, attemptId, completionNotice, loadAttempt, localBackupKey]
+   );
+ 
+-  // Handle temporary connection loss & seamless reconnection without creating duplicate attempts (Section 6.6)
++  // Reconnect after temporary connection loss without creating duplicate attempts.
+   useEffect(() => {
+     const onOffline = () => {
+       setIsOffline(true);
+diff --git a/src/pages/portal/EmployeeGuidelines.jsx b/src/pages/portal/EmployeeGuidelines.jsx
+index 1a771b7..f163f4c 100644
+--- a/src/pages/portal/EmployeeGuidelines.jsx
++++ b/src/pages/portal/EmployeeGuidelines.jsx
+@@ -31,7 +31,7 @@ export default function EmployeeGuidelines() {
+     loadGuidelines();
+   }, [loadGuidelines]);
+ 
+-  // Operational study-session duration ping while a guideline is open (Section 6.3 / 7.16)
++  // Track study time while a guideline is open.
+   useEffect(() => {
+     if (!accessLogId) return undefined;
+     const timer = setInterval(() => {
+diff --git a/src/utils/mapHelper.js b/src/utils/mapHelper.js
+index 85c2f35..41b3a65 100644
+--- a/src/utils/mapHelper.js
++++ b/src/utils/mapHelper.js
+@@ -81,7 +81,7 @@ export function resolveCompanyMap(
+ 
+   if (!addr && !rawMap && !coords) {
+     if (!fallbackInteractiveCanvas) return null;
+-    // Neutral country-level interactive map canvas (zero fabricated street address)
++    // Country-level map only; no street address is inferred.
+     const fallbackSrc =
+       'https://www.openstreetmap.org/export/embed.html?bbox=68.1%2C7.5%2C97.4%2C35.5&layer=mapnik';
+     return {
+-- 
+2.47.3
+
+
+From 8b34fc41ad0ded3a87c1c08d75f5f8afc353a76b Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:47:33 +0000
+Subject: [PATCH 2/9] refactor: use neutral names for public and sign-in UI
+
+---
+ src/App.jsx                             |   2 +-
+ src/components/BrandLogo.jsx            |   4 +-
+ src/components/PublicLayout.jsx         |   4 +-
+ src/components/PublicNavbar.jsx         |  72 ++--
+ src/pages/admin/AdminLoginPage.jsx      | 108 +++---
+ src/pages/public/AboutPage.jsx          |   6 +-
+ src/pages/public/CandidateLoginPage.jsx |  66 ++--
+ src/pages/public/CareersPage.jsx        |  12 +-
+ src/pages/public/ContactPage.jsx        |  10 +-
+ src/pages/public/EmployeeLoginPage.jsx  |  66 ++--
+ src/pages/public/HomePage.jsx           |  92 +++--
+ src/styles/futuristic.css               | 424 ++++++++++++------------
+ src/styles/neumorphic.css               |   2 +-
+ 13 files changed, 431 insertions(+), 437 deletions(-)
+
+diff --git a/src/App.jsx b/src/App.jsx
+index b3aa86e..3a341fd 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -171,7 +171,7 @@ export default function App() {
+               <Route path="*" element={<NotFoundPage />} />
+             </Route>
+ 
+-            {/* 2. Standalone Aurora Split-Screen Auth Gateways (All 3 Portals) */}
++            {/* Sign-in routes */}
+             <Route path="/exam-login" element={<CandidateLoginPage />} />
+             <Route path="/login" element={<EmployeeLoginPage />} />
+             <Route path="/admin/login" element={<AdminLoginPage />} />
+diff --git a/src/components/BrandLogo.jsx b/src/components/BrandLogo.jsx
+index bf4d88b..fba6652 100644
+--- a/src/components/BrandLogo.jsx
++++ b/src/components/BrandLogo.jsx
+@@ -1,6 +1,6 @@
+ import React from 'react';
+ 
+-export function VesperMarkSvg({ size = 22, color = 'currentColor' }) {
++export function BrandMarkSvg({ size = 22, color = 'currentColor' }) {
+   return (
+     <svg
+       width={size}
+@@ -44,7 +44,7 @@ export default function BrandLogo({ subtitle = 'IT SOLUTIONS', compact = false }
+           flexShrink: 0,
+         }}
+       >
+-        <VesperMarkSvg size={compact ? 19 : 22} color="#FFFFFF" />
++        <BrandMarkSvg size={compact ? 19 : 22} color="#FFFFFF" />
+       </div>
+ 
+       <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+diff --git a/src/components/PublicLayout.jsx b/src/components/PublicLayout.jsx
+index d221ce4..476c52a 100644
+--- a/src/components/PublicLayout.jsx
++++ b/src/components/PublicLayout.jsx
+@@ -34,7 +34,7 @@ export default function PublicLayout() {
+     <div className="futuristic-public-shell">
+       {/* Minimal ambient starfield across all public black backgrounds */}
+       <MinimalStarfield variant="ambient" />
+-      <div className="vesper-grain" aria-hidden="true" />
++      <div className="public-grain" aria-hidden="true" />
+ 
+       {/* Sticky top navbar on inner pages (on '/', PublicNavbar docks smoothly inside & past hero) */}
+       {!isHome && <PublicNavbar />}
+@@ -222,7 +222,7 @@ export default function PublicLayout() {
+                   Administrator Console
+                 </Link>
+                 <div style={{ paddingTop: 6 }}>
+-                  <Link to="/careers" className="vesper-btn vesper-btn-solid" style={{ width: '100%' }}>
++                  <Link to="/careers" className="public-btn public-btn-solid" style={{ width: '100%' }}>
+                     Apply as an Evaluator
+                   </Link>
+                 </div>
+diff --git a/src/components/PublicNavbar.jsx b/src/components/PublicNavbar.jsx
+index 2cf0230..6731f53 100644
+--- a/src/components/PublicNavbar.jsx
++++ b/src/components/PublicNavbar.jsx
+@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
+ import { Link, NavLink, useLocation } from 'react-router-dom';
+ import { ArrowUpRight } from 'lucide-react';
+ import { useAuth } from '../context/AuthContext.jsx';
+-import { VesperMarkSvg } from './BrandLogo.jsx';
++import { BrandMarkSvg } from './BrandLogo.jsx';
+ 
+ export function CosmicBrandMark({ size = 22 }) {
+   return (
+@@ -17,7 +17,7 @@ export function CosmicBrandMark({ size = 22 }) {
+         color: '#ffffff',
+       }}
+     >
+-      <VesperMarkSvg size={size} color="#ffffff" />
++      <BrandMarkSvg size={size} color="#ffffff" />
+       <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+         <span>AI Square</span>
+         <span
+@@ -53,11 +53,11 @@ export default function PublicNavbar({ animateEntrance = false }) {
+ 
+   useEffect(() => {
+     if (menuOpen) {
+-      document.body.classList.add('vesper-menu-open');
++      document.body.classList.add('public-menu-open');
+     } else {
+-      document.body.classList.remove('vesper-menu-open');
++      document.body.classList.remove('public-menu-open');
+     }
+-    return () => document.body.classList.remove('vesper-menu-open');
++    return () => document.body.classList.remove('public-menu-open');
+   }, [menuOpen]);
+ 
+   useEffect(() => {
+@@ -81,25 +81,25 @@ export default function PublicNavbar({ animateEntrance = false }) {
+   return (
+     <>
+       <div
+-        className={`vesper-menu-backdrop${menuOpen ? ' open' : ''}`}
++        className={`public-menu-backdrop${menuOpen ? ' open' : ''}`}
+         onClick={closeMenu}
+         aria-hidden="true"
+       />
+-      <header className={`vesper-header${scrolled ? ' vesper-header--scrolled' : ''}`}>
++      <header className={`public-header${scrolled ? ' public-header--scrolled' : ''}`}>
+         {/* Left — Clean Brand Mark + Wordmark (No '.it') */}
+         <Link
+           to="/"
+           onClick={closeMenu}
+           aria-label="AI Square IT Solutions Home"
+-          className={`vesper-logo${animateEntrance ? ' vesper-appear vesper-appear--scale' : ''}`}
++          className={`public-logo${animateEntrance ? ' public-appear public-appear--scale' : ''}`}
+           style={{ '--d': '0.08s' }}
+         >
+-          <span className="vesper-logo-emblem">
+-            <VesperMarkSvg size={18} color="#ffffff" />
++          <span className="public-logo-emblem">
++            <BrandMarkSvg size={18} color="#ffffff" />
+           </span>
+           <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+             <span>AI Square</span>
+-            <span className="vesper-logo-tag">IT Solutions</span>
++            <span className="public-logo-tag">IT Solutions</span>
+           </span>
+         </Link>
+ 
+@@ -107,16 +107,16 @@ export default function PublicNavbar({ animateEntrance = false }) {
+         <nav
+           id="site-nav"
+           aria-label="Primary"
+-          className={`vesper-nav${menuOpen ? ' open' : ''}`}
++          className={`public-nav${menuOpen ? ' open' : ''}`}
+         >
+-          <div className="vesper-nav-dock">
++          <div className="public-nav-dock">
+             <NavLink
+               to="/"
+               end
+               onClick={closeMenu}
+               className={({ isActive }) =>
+-                `vesper-nav-pill${isActive && !isTracksHash ? ' active' : ''}${
+-                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
++                `public-nav-pill${isActive && !isTracksHash ? ' active' : ''}${
++                  animateEntrance ? ' public-appear public-appear--scale' : ''
+                 }`
+               }
+               style={{ '--d': '0.14s' }}
+@@ -128,8 +128,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+               to="/about"
+               onClick={closeMenu}
+               className={({ isActive }) =>
+-                `vesper-nav-pill${isActive ? ' active' : ''}${
+-                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
++                `public-nav-pill${isActive ? ' active' : ''}${
++                  animateEntrance ? ' public-appear public-appear--scale' : ''
+                 }`
+               }
+               style={{ '--d': '0.22s' }}
+@@ -140,8 +140,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+             <Link
+               to="/#tracks"
+               onClick={closeMenu}
+-              className={`vesper-nav-pill${isTracksHash ? ' active' : ''}${
+-                animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
++              className={`public-nav-pill${isTracksHash ? ' active' : ''}${
++                animateEntrance ? ' public-appear public-appear--soft' : ''
+               }`}
+               style={{ '--d': '0.30s' }}
+             >
+@@ -152,8 +152,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+               to="/careers"
+               onClick={closeMenu}
+               className={({ isActive }) =>
+-                `vesper-nav-pill${isActive ? ' active' : ''}${
+-                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
++                `public-nav-pill${isActive ? ' active' : ''}${
++                  animateEntrance ? ' public-appear public-appear--scale' : ''
+                 }`
+               }
+               style={{ '--d': '0.38s' }}
+@@ -165,8 +165,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+               to="/contact"
+               onClick={closeMenu}
+               className={({ isActive }) =>
+-                `vesper-nav-pill${isActive ? ' active' : ''}${
+-                  animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
++                `public-nav-pill${isActive ? ' active' : ''}${
++                  animateEntrance ? ' public-appear public-appear--scale' : ''
+                 }`
+               }
+               style={{ '--d': '0.46s' }}
+@@ -185,7 +185,7 @@ export default function PublicNavbar({ animateEntrance = false }) {
+                   : '/portal'
+               }
+               onClick={closeMenu}
+-              className="vesper-nav-pill vesper-mobile-only-link"
++              className="public-nav-pill public-mobile-only-link"
+             >
+               {user.role === 'admin'
+                 ? 'Admin Console'
+@@ -198,14 +198,14 @@ export default function PublicNavbar({ animateEntrance = false }) {
+               <Link
+                 to="/exam-login"
+                 onClick={closeMenu}
+-                className="vesper-nav-pill vesper-mobile-only-link"
++                className="public-nav-pill public-mobile-only-link"
+               >
+                 Candidate Exam Portal
+               </Link>
+               <Link
+                 to="/login"
+                 onClick={closeMenu}
+-                className="vesper-nav-pill vesper-mobile-only-link"
++                className="public-nav-pill public-mobile-only-link"
+               >
+                 Employee Portal
+               </Link>
+@@ -214,7 +214,7 @@ export default function PublicNavbar({ animateEntrance = false }) {
+         </nav>
+ 
+         {/* Right — Portal Sign-In + Apply CTA */}
+-        <div className="vesper-header-right">
++        <div className="public-header-right">
+           {user ? (
+             <Link
+               to={
+@@ -224,8 +224,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+                   ? '/exam-portal'
+                   : '/portal'
+               }
+-              className={`vesper-btn vesper-btn-ghost${
+-                animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
++              className={`public-btn public-btn-ghost${
++                animateEntrance ? ' public-appear public-appear--soft' : ''
+               }`}
+               style={{ '--d': '0.54s' }}
+             >
+@@ -239,8 +239,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+             <>
+               <Link
+                 to="/exam-login"
+-                className={`vesper-btn vesper-btn-ghost${
+-                  animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
++                className={`public-btn public-btn-ghost${
++                  animateEntrance ? ' public-appear public-appear--soft' : ''
+                 }`}
+                 style={{ '--d': '0.50s' }}
+               >
+@@ -248,8 +248,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+               </Link>
+               <Link
+                 to="/login"
+-                className={`vesper-btn vesper-btn-ghost${
+-                  animateEntrance ? ' vesper-appear vesper-appear--soft' : ''
++                className={`public-btn public-btn-ghost${
++                  animateEntrance ? ' public-appear public-appear--soft' : ''
+                 }`}
+                 style={{ '--d': '0.56s' }}
+               >
+@@ -260,8 +260,8 @@ export default function PublicNavbar({ animateEntrance = false }) {
+ 
+           <Link
+             to="/careers"
+-            className={`vesper-btn vesper-btn-solid${
+-              animateEntrance ? ' vesper-appear vesper-appear--scale' : ''
++            className={`public-btn public-btn-solid${
++              animateEntrance ? ' public-appear public-appear--scale' : ''
+             }`}
+             style={{ '--d': '0.64s' }}
+           >
+@@ -271,7 +271,7 @@ export default function PublicNavbar({ animateEntrance = false }) {
+ 
+           <button
+             type="button"
+-            className={`vesper-burger${menuOpen ? ' open' : ''}`}
++            className={`public-burger${menuOpen ? ' open' : ''}`}
+             aria-label="Menu"
+             aria-expanded={menuOpen}
+             aria-controls="site-nav"
+diff --git a/src/pages/admin/AdminLoginPage.jsx b/src/pages/admin/AdminLoginPage.jsx
+index 2f0c32e..02dc025 100644
+--- a/src/pages/admin/AdminLoginPage.jsx
++++ b/src/pages/admin/AdminLoginPage.jsx
+@@ -7,14 +7,14 @@ import { apiRequest } from '../../utils/api.js';
+ const AURORA_VIDEO_URL =
+   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260506_081238_406ed0e3-5d83-436e-a512-0bbff7ec5b95.mp4';
+ 
+-function AuroraStepItem({ number, text, active = false, delay = '0.25s' }) {
++function LoginStepItem({ number, text, active = false, delay = '0.25s' }) {
+   return (
+     <div
+-      className={`aurora-step-pill aurora-stagger-item${active ? ' active' : ''}`}
++      className={`login-step-pill login-stagger-item${active ? ' active' : ''}`}
+       style={{ '--ad': delay }}
+     >
+-      <span className="aurora-step-num">{number}</span>
+-      <span className="aurora-step-label">{text}</span>
++      <span className="login-step-num">{number}</span>
++      <span className="login-step-label">{text}</span>
+     </div>
+   );
+ }
+@@ -95,11 +95,11 @@ export default function AdminLoginPage() {
+   };
+ 
+   return (
+-    <main className="aurora-auth-main">
++    <main className="login-main">
+       {/* Left Column — Pure Unfiltered Video + 3 Admin Control Phases */}
+-      <section className="aurora-left-hero" aria-label="Administrator control overview">
++      <section className="login-left-hero" aria-label="Administrator control overview">
+         <video
+-          className="aurora-bg-video"
++          className="login-bg-video"
+           autoPlay
+           muted
+           loop
+@@ -110,40 +110,40 @@ export default function AdminLoginPage() {
+           <source src={AURORA_VIDEO_URL} type="video/mp4" />
+         </video>
+ 
+-        <div className="aurora-hero-inner">
++        <div className="login-hero-inner">
+           <Link
+             to="/"
+-            className="aurora-brand-row aurora-stagger-item"
++            className="login-brand-row login-stagger-item"
+             style={{ '--ad': '0.18s', textDecoration: 'none' }}
+           >
+             <Circle size={18} fill="#ffffff" color="#ffffff" />
+             <span>AI Square</span>
+           </Link>
+ 
+-          <div className="aurora-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
+-            <h2 className="aurora-hero-title">
++          <div className="login-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
++            <h2 className="login-hero-title">
+               {needsInitialAdmin ? 'Activate Admin' : 'Admin Console'}
+             </h2>
+-            <p className="aurora-hero-desc">
++            <p className="login-hero-desc">
+               {needsInitialAdmin
+                 ? 'Follow these 3 quick steps to initialize your primary administrator.'
+                 : 'Restricted workforce, rubric, assessment & career management.'}
+             </p>
+           </div>
+ 
+-          <div className="aurora-steps-stack">
+-            <AuroraStepItem
++          <div className="login-steps-stack">
++            <LoginStepItem
+               number="1"
+               text={needsInitialAdmin ? 'Verify server bootstrap token' : 'Authenticate admin identity'}
+               active
+               delay="0.42s"
+             />
+-            <AuroraStepItem
++            <LoginStepItem
+               number="2"
+               text={needsInitialAdmin ? 'Create primary admin profile' : 'Manage evaluators & guidelines'}
+               delay="0.54s"
+             />
+-            <AuroraStepItem
++            <LoginStepItem
+               number="3"
+               text={needsInitialAdmin ? 'Launch management console' : 'Review assessments & careers'}
+               delay="0.66s"
+@@ -153,13 +153,13 @@ export default function AdminLoginPage() {
+       </section>
+ 
+       {/* Right Column — Clean Black Sign-In / First-Run Setup Form */}
+-      <section className="aurora-right-form">
+-        <div className="aurora-form-container">
++      <section className="login-right-form">
++        <div className="login-form-container">
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+-            <Link to="/" className="aurora-top-back">
++            <Link to="/" className="login-top-back">
+               &larr; Public Website
+             </Link>
+-            <Link to="/login" className="aurora-top-back">
++            <Link to="/login" className="login-top-back">
+               Employee Sign In &rarr;
+             </Link>
+           </div>
+@@ -171,26 +171,26 @@ export default function AdminLoginPage() {
+           ) : needsInitialAdmin ? (
+             <>
+               <div style={{ marginBottom: 22 }}>
+-                <h1 className="aurora-form-heading">Initialize Administrator</h1>
+-                <p className="aurora-form-sub">
++                <h1 className="login-form-heading">Initialize Administrator</h1>
++                <p className="login-form-sub">
+                   One-time setup. Once created, this initialization screen locks permanently.
+                 </p>
+               </div>
+ 
+               {error && (
+-                <div className="aurora-alert aurora-alert-error" role="alert">
++                <div className="login-alert login-alert-error" role="alert">
+                   <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+                   <span>{error}</span>
+                 </div>
+               )}
+ 
+-              <form onSubmit={handleBootstrap} className="aurora-fields" style={{ gap: 14 }}>
+-                <div className="aurora-input-group">
++              <form onSubmit={handleBootstrap} className="login-fields" style={{ gap: 14 }}>
++                <div className="login-input-group">
+                   <label htmlFor="boot-token">One-Time Server Setup Token *</label>
+                   <input
+                     id="boot-token"
+                     type="password"
+-                    className="aurora-input"
++                    className="login-input"
+                     placeholder="Enter ADMIN_BOOTSTRAP_TOKEN"
+                     value={bootstrapToken}
+                     onChange={(e) => setBootstrapToken(e.target.value)}
+@@ -198,25 +198,25 @@ export default function AdminLoginPage() {
+                   />
+                 </div>
+ 
+-                <div className="aurora-grid-2">
+-                  <div className="aurora-input-group">
++                <div className="login-grid-2">
++                  <div className="login-input-group">
+                     <label htmlFor="boot-name">Full Name *</label>
+                     <input
+                       id="boot-name"
+                       type="text"
+-                      className="aurora-input"
++                      className="login-input"
+                       placeholder="Shaik Kazim"
+                       value={fullName}
+                       onChange={(e) => setFullName(e.target.value)}
+                       required
+                     />
+                   </div>
+-                  <div className="aurora-input-group">
++                  <div className="login-input-group">
+                     <label htmlFor="boot-user">Username (no @ or spaces) *</label>
+                     <input
+                       id="boot-user"
+                       type="text"
+-                      className="aurora-input"
++                      className="login-input"
+                       placeholder="aisquare.admin"
+                       value={username}
+                       onChange={(e) => setUsername(e.target.value)}
+@@ -225,12 +225,12 @@ export default function AdminLoginPage() {
+                   </div>
+                 </div>
+ 
+-                <div className="aurora-input-group">
++                <div className="login-input-group">
+                   <label htmlFor="boot-email">Admin Email *</label>
+                   <input
+                     id="boot-email"
+                     type="email"
+-                    className="aurora-input"
++                    className="login-input"
+                     placeholder="admin@company.com"
+                     value={email}
+                     onChange={(e) => setEmail(e.target.value)}
+@@ -238,14 +238,14 @@ export default function AdminLoginPage() {
+                   />
+                 </div>
+ 
+-                <div className="aurora-grid-2">
+-                  <div className="aurora-input-group">
++                <div className="login-grid-2">
++                  <div className="login-input-group">
+                     <label htmlFor="boot-pwd">Password *</label>
+-                    <div className="aurora-pwd-wrap">
++                    <div className="login-pwd-wrap">
+                       <input
+                         id="boot-pwd"
+                         type={showSetupPwd ? 'text' : 'password'}
+-                        className="aurora-input"
++                        className="login-input"
+                         style={{ paddingRight: 40 }}
+                         placeholder="8+ chars (letters & numbers)"
+                         value={setupPassword}
+@@ -254,7 +254,7 @@ export default function AdminLoginPage() {
+                       />
+                       <button
+                         type="button"
+-                        className="aurora-eye-btn"
++                        className="login-eye-btn"
+                         onClick={() => setShowSetupPwd((p) => !p)}
+                         aria-label={showSetupPwd ? 'Hide password' : 'Show password'}
+                       >
+@@ -263,12 +263,12 @@ export default function AdminLoginPage() {
+                     </div>
+                   </div>
+ 
+-                  <div className="aurora-input-group">
++                  <div className="login-input-group">
+                     <label htmlFor="boot-confirm">Confirm Password *</label>
+                     <input
+                       id="boot-confirm"
+                       type={showSetupPwd ? 'text' : 'password'}
+-                      className="aurora-input"
++                      className="login-input"
+                       placeholder="Re-enter password"
+                       value={confirmSetupPassword}
+                       onChange={(e) => setConfirmSetupPassword(e.target.value)}
+@@ -279,7 +279,7 @@ export default function AdminLoginPage() {
+ 
+                 <button
+                   type="submit"
+-                  className="aurora-submit-btn"
++                  className="login-submit-btn"
+                   disabled={submitting}
+                 >
+                   {submitting ? 'Initializing...' : 'Create Primary Administrator & Sign In'}
+@@ -289,14 +289,14 @@ export default function AdminLoginPage() {
+           ) : (
+             <>
+               <div style={{ marginBottom: 26 }}>
+-                <h1 className="aurora-form-heading">Administrator Sign In</h1>
+-                <p className="aurora-form-sub">
++                <h1 className="login-form-heading">Administrator Sign In</h1>
++                <p className="login-form-sub">
+                   Authorized management access only. Employee accounts sign in at the Evaluator Portal.
+                 </p>
+               </div>
+ 
+               {user && user.role === 'employee' && (
+-                <div className="aurora-alert aurora-alert-error" role="alert">
++                <div className="login-alert login-alert-error" role="alert">
+                   <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+                   <span>
+                     You are currently signed in as an Employee ({user.employeeCode}). Sign in with
+@@ -306,19 +306,19 @@ export default function AdminLoginPage() {
+               )}
+ 
+               {error && (
+-                <div className="aurora-alert aurora-alert-error" role="alert">
++                <div className="login-alert login-alert-error" role="alert">
+                   <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+                   <span>{error}</span>
+                 </div>
+               )}
+ 
+-              <form onSubmit={handleLogin} className="aurora-fields">
+-                <div className="aurora-input-group">
++              <form onSubmit={handleLogin} className="login-fields">
++                <div className="login-input-group">
+                   <label htmlFor="adm-id">Admin Email or Username</label>
+                   <input
+                     id="adm-id"
+                     type="text"
+-                    className="aurora-input"
++                    className="login-input"
+                     placeholder="aisquare.admin or email"
+                     value={identifier}
+                     onChange={(e) => setIdentifier(e.target.value)}
+@@ -327,13 +327,13 @@ export default function AdminLoginPage() {
+                   />
+                 </div>
+ 
+-                <div className="aurora-input-group">
++                <div className="login-input-group">
+                   <label htmlFor="adm-pwd">Password</label>
+-                  <div className="aurora-pwd-wrap">
++                  <div className="login-pwd-wrap">
+                     <input
+                       id="adm-pwd"
+                       type={showLoginPwd ? 'text' : 'password'}
+-                      className="aurora-input"
++                      className="login-input"
+                       style={{ paddingRight: 44 }}
+                       placeholder="Enter administrator password"
+                       value={password}
+@@ -343,21 +343,21 @@ export default function AdminLoginPage() {
+                     />
+                     <button
+                       type="button"
+-                      className="aurora-eye-btn"
++                      className="login-eye-btn"
+                       onClick={() => setShowLoginPwd((p) => !p)}
+                       aria-label={showLoginPwd ? 'Hide password' : 'Show password'}
+                     >
+                       {showLoginPwd ? <EyeOff size={17} /> : <Eye size={17} />}
+                     </button>
+                   </div>
+-                  <span className="aurora-helper-text">
++                  <span className="login-helper-text">
+                     Requires authorized administrator privileges.
+                   </span>
+                 </div>
+ 
+                 <button
+                   type="submit"
+-                  className="aurora-submit-btn"
++                  className="login-submit-btn"
+                   disabled={submitting}
+                 >
+                   {submitting ? 'Verifying Credentials...' : 'Sign In to Admin Console'}
+diff --git a/src/pages/public/AboutPage.jsx b/src/pages/public/AboutPage.jsx
+index 61785c7..1dc6f00 100644
+--- a/src/pages/public/AboutPage.jsx
++++ b/src/pages/public/AboutPage.jsx
+@@ -29,7 +29,7 @@ export default function AboutPage() {
+           }}
+         >
+           <div style={{ maxWidth: 740 }}>
+-            <div className="vesper-eyebrow-pill" style={{ marginBottom: 18 }}>
++            <div className="public-eyebrow-pill" style={{ marginBottom: 18 }}>
+               <Sparkles size={13} />
+               <span>Vision &amp; Methodology</span>
+             </div>
+@@ -222,11 +222,11 @@ export default function AboutPage() {
+             </p>
+           </div>
+           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+-            <Link to="/careers" className="vesper-btn vesper-btn-solid">
++            <Link to="/careers" className="public-btn public-btn-solid">
+               Explore Evaluator Careers
+               <ArrowUpRight size={15} style={{ marginLeft: 6 }} />
+             </Link>
+-            <Link to="/login" className="vesper-btn vesper-btn-ghost">
++            <Link to="/login" className="public-btn public-btn-ghost">
+               Evaluator Sign In
+             </Link>
+           </div>
+diff --git a/src/pages/public/CandidateLoginPage.jsx b/src/pages/public/CandidateLoginPage.jsx
+index ec16f26..3fd107d 100644
+--- a/src/pages/public/CandidateLoginPage.jsx
++++ b/src/pages/public/CandidateLoginPage.jsx
+@@ -6,14 +6,14 @@ import { useAuth } from '../../context/AuthContext.jsx';
+ const AURORA_VIDEO_URL =
+   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260506_081238_406ed0e3-5d83-436e-a512-0bbff7ec5b95.mp4';
+ 
+-function AuroraStepItem({ number, text, active = false, delay = '0.25s' }) {
++function LoginStepItem({ number, text, active = false, delay = '0.25s' }) {
+   return (
+     <div
+-      className={`aurora-step-pill aurora-stagger-item${active ? ' active' : ''}`}
++      className={`login-step-pill login-stagger-item${active ? ' active' : ''}`}
+       style={{ '--ad': delay }}
+     >
+-      <span className="aurora-step-num">{number}</span>
+-      <span className="aurora-step-label">{text}</span>
++      <span className="login-step-num">{number}</span>
++      <span className="login-step-label">{text}</span>
+     </div>
+   );
+ }
+@@ -56,11 +56,11 @@ export default function CandidateLoginPage() {
+   };
+ 
+   return (
+-    <main className="aurora-auth-main">
++    <main className="login-main">
+       {/* Left Column — Pure Unfiltered Video + 3 Candidate Screening Steps */}
+-      <section className="aurora-left-hero" aria-label="Candidate exam portal overview">
++      <section className="login-left-hero" aria-label="Candidate exam portal overview">
+         <video
+-          className="aurora-bg-video"
++          className="login-bg-video"
+           autoPlay
+           muted
+           loop
+@@ -71,36 +71,36 @@ export default function CandidateLoginPage() {
+           <source src={AURORA_VIDEO_URL} type="video/mp4" />
+         </video>
+ 
+-        <div className="aurora-hero-inner">
++        <div className="login-hero-inner">
+           <Link
+             to="/"
+-            className="aurora-brand-row aurora-stagger-item"
++            className="login-brand-row login-stagger-item"
+             style={{ '--ad': '0.18s', textDecoration: 'none' }}
+           >
+             <Circle size={18} fill="#ffffff" color="#ffffff" />
+             <span>AI Square</span>
+           </Link>
+ 
+-          <div className="aurora-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
+-            <h2 className="aurora-hero-title">Candidate Exam Portal</h2>
+-            <p className="aurora-hero-desc">
++          <div className="login-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
++            <h2 className="login-hero-title">Candidate Exam Portal</h2>
++            <p className="login-hero-desc">
+               Complete your Admin-assigned aptitude &amp; AI evaluation screening exam.
+             </p>
+           </div>
+ 
+-          <div className="aurora-steps-stack">
+-            <AuroraStepItem
++          <div className="login-steps-stack">
++            <LoginStepItem
+               number="1"
+               text="Sign in with Admin-issued login"
+               active
+               delay="0.42s"
+             />
+-            <AuroraStepItem
++            <LoginStepItem
+               number="2"
+               text="Complete your assigned timed exam"
+               delay="0.54s"
+             />
+-            <AuroraStepItem
++            <LoginStepItem
+               number="3"
+               text="View results released by Admin"
+               delay="0.66s"
+@@ -110,38 +110,38 @@ export default function CandidateLoginPage() {
+       </section>
+ 
+       {/* Right Column — Clean Black Sign-In Form */}
+-      <section className="aurora-right-form">
+-        <div className="aurora-form-container">
++      <section className="login-right-form">
++        <div className="login-form-container">
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+-            <Link to="/" className="aurora-top-back">
++            <Link to="/" className="login-top-back">
+               &larr; Back to AI Square
+             </Link>
+-            <Link to="/careers" className="aurora-top-back">
++            <Link to="/careers" className="login-top-back">
+               Apply on Careers &rarr;
+             </Link>
+           </div>
+ 
+           <div style={{ marginBottom: 28 }}>
+-            <h1 className="aurora-form-heading">Candidate Exam Sign In</h1>
+-            <p className="aurora-form-sub">
++            <h1 className="login-form-heading">Candidate Exam Sign In</h1>
++            <p className="login-form-sub">
+               Enter the exam credentials (<code>CND-xxxx</code>) issued by AI Square Administration to start your assigned exam or check released results.
+             </p>
+           </div>
+ 
+           {error && (
+-            <div className="aurora-alert aurora-alert-error" role="alert">
++            <div className="login-alert login-alert-error" role="alert">
+               <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+               <span>{error}</span>
+             </div>
+           )}
+ 
+-          <form onSubmit={handleSubmit} className="aurora-fields">
+-            <div className="aurora-input-group">
++          <form onSubmit={handleSubmit} className="login-fields">
++            <div className="login-input-group">
+               <label htmlFor="cand-id">Username or Email</label>
+               <input
+                 id="cand-id"
+                 type="text"
+-                className="aurora-input"
++                className="login-input"
+                 placeholder="candidate.username or email"
+                 value={identifier}
+                 onChange={(e) => setIdentifier(e.target.value)}
+@@ -150,13 +150,13 @@ export default function CandidateLoginPage() {
+               />
+             </div>
+ 
+-            <div className="aurora-input-group">
++            <div className="login-input-group">
+               <label htmlFor="cand-pwd">Exam Password</label>
+-              <div className="aurora-pwd-wrap">
++              <div className="login-pwd-wrap">
+                 <input
+                   id="cand-pwd"
+                   type={showPwd ? 'text' : 'password'}
+-                  className="aurora-input"
++                  className="login-input"
+                   style={{ paddingRight: 44 }}
+                   placeholder="Enter your issued password"
+                   value={password}
+@@ -166,28 +166,28 @@ export default function CandidateLoginPage() {
+                 />
+                 <button
+                   type="button"
+-                  className="aurora-eye-btn"
++                  className="login-eye-btn"
+                   onClick={() => setShowPwd((p) => !p)}
+                   aria-label={showPwd ? 'Hide password' : 'Show password'}
+                 >
+                   {showPwd ? <EyeOff size={17} /> : <Eye size={17} />}
+                 </button>
+               </div>
+-              <span className="aurora-helper-text">
++              <span className="login-helper-text">
+                 Candidate logins and exam assignments are controlled exclusively by AI Square Administration.
+               </span>
+             </div>
+ 
+             <button
+               type="submit"
+-              className="aurora-submit-btn"
++              className="login-submit-btn"
+               disabled={submitting}
+             >
+               {submitting ? 'Signing In...' : 'Enter Exam Portal'}
+             </button>
+           </form>
+ 
+-          <div className="aurora-divider">
++          <div className="login-divider">
+             <span>Other Portals</span>
+           </div>
+ 
+diff --git a/src/pages/public/CareersPage.jsx b/src/pages/public/CareersPage.jsx
+index 1cffc48..08f2cd4 100644
+--- a/src/pages/public/CareersPage.jsx
++++ b/src/pages/public/CareersPage.jsx
+@@ -156,7 +156,7 @@ export default function CareersPage() {
+         {/* Clean Editorial Careers Hero */}
+         <div className="neu-card scroll-reveal" style={{ padding: '42px 36px', marginBottom: 32 }}>
+           <div style={{ maxWidth: 720 }}>
+-            <div className="vesper-eyebrow-pill" style={{ marginBottom: 16 }}>
++            <div className="public-eyebrow-pill" style={{ marginBottom: 16 }}>
+               <Sparkles size={13} />
+               <span>Careers &bull; Human AI Evaluation</span>
+             </div>
+@@ -193,7 +193,7 @@ export default function CareersPage() {
+ 
+             <button
+               type="button"
+-              className="vesper-btn vesper-btn-solid"
++              className="public-btn public-btn-solid"
+               onClick={() => handleSelectPosition('general')}
+             >
+               Jump to Application Form
+@@ -220,7 +220,7 @@ export default function CareersPage() {
+               <button
+                 key={track.id}
+                 type="button"
+-                className={`vesper-nav-pill${
++                className={`public-nav-pill${
+                   jobSelection === 'general' && preferredTrack === track.title ? ' active' : ''
+                 }`}
+                 style={{ cursor: 'pointer' }}
+@@ -247,7 +247,7 @@ export default function CareersPage() {
+             <h2 style={{ fontSize: '1.35rem', fontWeight: 500, margin: 0 }}>Open Positions</h2>
+             <button
+               type="button"
+-              className="vesper-btn vesper-btn-ghost"
++              className="public-btn public-btn-ghost"
+               onClick={() => handleSelectPosition('general')}
+             >
+               Submit General Evaluator Application
+@@ -302,7 +302,7 @@ export default function CareersPage() {
+                     </div>
+                     <button
+                       type="button"
+-                      className="vesper-btn vesper-btn-solid"
++                      className="public-btn public-btn-solid"
+                       onClick={() => handleSelectPosition(job.id)}
+                     >
+                       Apply for This Role
+@@ -542,7 +542,7 @@ export default function CareersPage() {
+               <div style={{ marginTop: 16 }}>
+                 <button
+                   type="submit"
+-                  className="vesper-btn vesper-btn-solid"
++                  className="public-btn public-btn-solid"
+                   style={{ height: 48, padding: '0 26px', fontSize: '0.94rem' }}
+                   disabled={submitting}
+                 >
+diff --git a/src/pages/public/ContactPage.jsx b/src/pages/public/ContactPage.jsx
+index 2227276..26e1bb6 100644
+--- a/src/pages/public/ContactPage.jsx
++++ b/src/pages/public/ContactPage.jsx
+@@ -250,7 +250,7 @@ export default function ContactPage() {
+ 
+               <button
+                 type="submit"
+-                className="vesper-btn vesper-btn-solid"
++                className="public-btn public-btn-solid"
+                 style={{ height: 46, padding: '0 22px' }}
+                 disabled={submitting}
+               >
+@@ -271,7 +271,7 @@ export default function ContactPage() {
+                   <button
+                     key={topic}
+                     type="button"
+-                    className="vesper-nav-pill"
++                    className="public-nav-pill"
+                     style={{ cursor: 'pointer', height: 34, fontSize: '0.8rem', padding: '0 13px' }}
+                     onClick={() => setSubject(topic)}
+                   >
+@@ -321,7 +321,7 @@ export default function ContactPage() {
+               <p style={{ margin: '0 0 14px', fontSize: '0.88rem', color: '#9a9a9a', lineHeight: 1.55 }}>
+                 Submit your resume directly for open AI Evaluator tracks on our Careers page.
+               </p>
+-              <Link to="/careers" className="vesper-btn vesper-btn-ghost">
++              <Link to="/careers" className="public-btn public-btn-ghost">
+                 Go to Evaluator Careers &rarr;
+               </Link>
+             </div>
+@@ -365,7 +365,7 @@ export default function ContactPage() {
+                 {isAdmin && (
+                   <button
+                     type="button"
+-                    className="vesper-btn vesper-btn-ghost"
++                    className="public-btn public-btn-ghost"
+                     onClick={() => setEditingLocation((v) => !v)}
+                   >
+                     <Settings size={14} style={{ marginRight: 6 }} />
+@@ -382,7 +382,7 @@ export default function ContactPage() {
+                     href={resolvedMap.directionsUrl}
+                     target="_blank"
+                     rel="noreferrer"
+-                    className="vesper-btn vesper-btn-solid"
++                    className="public-btn public-btn-solid"
+                   >
+                     <MapPin size={14} style={{ marginRight: 6 }} />
+                     Open in Google Maps
+diff --git a/src/pages/public/EmployeeLoginPage.jsx b/src/pages/public/EmployeeLoginPage.jsx
+index 7102a6b..5ec5b63 100644
+--- a/src/pages/public/EmployeeLoginPage.jsx
++++ b/src/pages/public/EmployeeLoginPage.jsx
+@@ -6,14 +6,14 @@ import { useAuth } from '../../context/AuthContext.jsx';
+ const AURORA_VIDEO_URL =
+   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260506_081238_406ed0e3-5d83-436e-a512-0bbff7ec5b95.mp4';
+ 
+-function AuroraStepItem({ number, text, active = false, delay = '0.25s' }) {
++function LoginStepItem({ number, text, active = false, delay = '0.25s' }) {
+   return (
+     <div
+-      className={`aurora-step-pill aurora-stagger-item${active ? ' active' : ''}`}
++      className={`login-step-pill login-stagger-item${active ? ' active' : ''}`}
+       style={{ '--ad': delay }}
+     >
+-      <span className="aurora-step-num">{number}</span>
+-      <span className="aurora-step-label">{text}</span>
++      <span className="login-step-num">{number}</span>
++      <span className="login-step-label">{text}</span>
+     </div>
+   );
+ }
+@@ -56,11 +56,11 @@ export default function EmployeeLoginPage() {
+   };
+ 
+   return (
+-    <main className="aurora-auth-main">
++    <main className="login-main">
+       {/* Left Column — Pure Unfiltered Video + 3 Employee Workflow Steps */}
+-      <section className="aurora-left-hero" aria-label="Employee workspace overview">
++      <section className="login-left-hero" aria-label="Employee workspace overview">
+         <video
+-          className="aurora-bg-video"
++          className="login-bg-video"
+           autoPlay
+           muted
+           loop
+@@ -71,36 +71,36 @@ export default function EmployeeLoginPage() {
+           <source src={AURORA_VIDEO_URL} type="video/mp4" />
+         </video>
+ 
+-        <div className="aurora-hero-inner">
++        <div className="login-hero-inner">
+           <Link
+             to="/"
+-            className="aurora-brand-row aurora-stagger-item"
++            className="login-brand-row login-stagger-item"
+             style={{ '--ad': '0.18s', textDecoration: 'none' }}
+           >
+             <Circle size={18} fill="#ffffff" color="#ffffff" />
+             <span>AI Square</span>
+           </Link>
+ 
+-          <div className="aurora-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
+-            <h2 className="aurora-hero-title">Employee Portal</h2>
+-            <p className="aurora-hero-desc">
++          <div className="login-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
++            <h2 className="login-hero-title">Employee Portal</h2>
++            <p className="login-hero-desc">
+               Guidelines, project readiness, qualification assessments, and workforce updates.
+             </p>
+           </div>
+ 
+-          <div className="aurora-steps-stack">
+-            <AuroraStepItem
++          <div className="login-steps-stack">
++            <LoginStepItem
+               number="1"
+               text="Sign in with Employee credentials"
+               active
+               delay="0.42s"
+             />
+-            <AuroraStepItem
++            <LoginStepItem
+               number="2"
+               text="Study project rubrics & guidelines"
+               delay="0.54s"
+             />
+-            <AuroraStepItem
++            <LoginStepItem
+               number="3"
+               text="Track readiness & announcements"
+               delay="0.66s"
+@@ -110,38 +110,38 @@ export default function EmployeeLoginPage() {
+       </section>
+ 
+       {/* Right Column — Clean Black Sign-In Form */}
+-      <section className="aurora-right-form">
+-        <div className="aurora-form-container">
++      <section className="login-right-form">
++        <div className="login-form-container">
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+-            <Link to="/" className="aurora-top-back">
++            <Link to="/" className="login-top-back">
+               &larr; Back to AI Square
+             </Link>
+-            <Link to="/exam-login" className="aurora-top-back">
++            <Link to="/exam-login" className="login-top-back">
+               Candidate Exam Portal &rarr;
+             </Link>
+           </div>
+ 
+           <div style={{ marginBottom: 28 }}>
+-            <h1 className="aurora-form-heading">Employee Sign In</h1>
+-            <p className="aurora-form-sub">
++            <h1 className="login-form-heading">Employee Sign In</h1>
++            <p className="login-form-sub">
+               Sign in with your AI Square evaluator credentials (<code>EMP-xxxx</code>) to access guidelines, project readiness, assessments, and announcements.
+             </p>
+           </div>
+ 
+           {error && (
+-            <div className="aurora-alert aurora-alert-error" role="alert">
++            <div className="login-alert login-alert-error" role="alert">
+               <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+               <span>{error}</span>
+             </div>
+           )}
+ 
+-          <form onSubmit={handleSubmit} className="aurora-fields">
+-            <div className="aurora-input-group">
++          <form onSubmit={handleSubmit} className="login-fields">
++            <div className="login-input-group">
+               <label htmlFor="emp-id">Email or Username</label>
+               <input
+                 id="emp-id"
+                 type="text"
+-                className="aurora-input"
++                className="login-input"
+                 placeholder="name@company.com or username"
+                 value={identifier}
+                 onChange={(e) => setIdentifier(e.target.value)}
+@@ -150,13 +150,13 @@ export default function EmployeeLoginPage() {
+               />
+             </div>
+ 
+-            <div className="aurora-input-group">
++            <div className="login-input-group">
+               <label htmlFor="emp-pwd">Password</label>
+-              <div className="aurora-pwd-wrap">
++              <div className="login-pwd-wrap">
+                 <input
+                   id="emp-pwd"
+                   type={showPwd ? 'text' : 'password'}
+-                  className="aurora-input"
++                  className="login-input"
+                   style={{ paddingRight: 44 }}
+                   placeholder="Enter your password"
+                   value={password}
+@@ -166,28 +166,28 @@ export default function EmployeeLoginPage() {
+                 />
+                 <button
+                   type="button"
+-                  className="aurora-eye-btn"
++                  className="login-eye-btn"
+                   onClick={() => setShowPwd((p) => !p)}
+                   aria-label={showPwd ? 'Hide password' : 'Show password'}
+                 >
+                   {showPwd ? <EyeOff size={17} /> : <Eye size={17} />}
+                 </button>
+               </div>
+-              <span className="aurora-helper-text">
++              <span className="login-helper-text">
+                 Taking a job application screening test? Use the <Link to="/exam-login" style={{ color: '#ffffff', textDecoration: 'underline' }}>Candidate Exam Portal</Link>.
+               </span>
+             </div>
+ 
+             <button
+               type="submit"
+-              className="aurora-submit-btn"
++              className="login-submit-btn"
+               disabled={submitting}
+             >
+               {submitting ? 'Signing In...' : 'Enter Employee Portal'}
+             </button>
+           </form>
+ 
+-          <div className="aurora-divider">
++          <div className="login-divider">
+             <span>Other Portals</span>
+           </div>
+ 
+diff --git a/src/pages/public/HomePage.jsx b/src/pages/public/HomePage.jsx
+index 7c24004..201ad3f 100644
+--- a/src/pages/public/HomePage.jsx
++++ b/src/pages/public/HomePage.jsx
+@@ -31,12 +31,12 @@ export default function HomePage() {
+ 
+   useScrollReveal(rootRef);
+ 
+-  // Vesper one-time hero entrance cleanup + two-rAF safety fallback
++  // Clean up hero entrance animations after they finish.
+   useEffect(() => {
+     const scope = rootRef.current;
+     if (!scope) return undefined;
+ 
+-    const els = Array.from(scope.querySelectorAll('.vesper-appear'));
++    const els = Array.from(scope.querySelectorAll('.public-appear'));
+     const cleanups = [];
+ 
+     els.forEach((el) => {
+@@ -75,9 +75,9 @@ export default function HomePage() {
+       {/* =====================================================================
+           1. VESPER HERO STAGE + CRISP NIGHT-SKY STARS
+          ===================================================================== */}
+-      <div className="vesper-hero-frame" id="top">
++      <div className="public-hero-frame" id="top">
+         <video
+-          className="vesper-hero-video"
++          className="public-hero-video"
+           src={VESPER_HERO_VIDEO_URL}
+           autoPlay
+           muted
+@@ -87,24 +87,24 @@ export default function HomePage() {
+           aria-hidden="true"
+         />
+ 
+-        {/* Crisp visible stars across the dark night sky of the Hero */}
++        {/* Starfield background */}
+         <MinimalStarfield variant="hero" />
+ 
+-        {/* Sticky / Floating Top Command Bar */}
++        {/* Public navigation */}
+         <PublicNavbar animateEntrance />
+ 
+-        <div className="vesper-page-grid">
++        <div className="public-page-grid">
+           <div aria-hidden="true" style={{ height: 74 }} />
+ 
+-          {/* Bottom-Centered Hero Copy */}
+-          <div className="vesper-hero-stage">
+-            <div className="vesper-hero-copy">
++          {/* Hero copy */}
++          <div className="public-hero-stage">
++            <div className="public-hero-copy">
+               <div
+-                className="vesper-badge vesper-appear vesper-appear--pop"
++                className="public-badge public-appear public-appear--pop"
+                 style={{ '--d': '0.22s' }}
+               >
+                 <svg
+-                  className="vesper-badge-star"
++                  className="public-badge-star"
+                   width="17"
+                   height="19"
+                   viewBox="0 0 24 24"
+@@ -116,15 +116,15 @@ export default function HomePage() {
+                 <span>Human-in-the-Loop AI Quality</span>
+               </div>
+ 
+-              <h1 className="vesper-h1">
++              <h1 className="public-h1">
+                 <span
+-                  className="vesper-headline-line vesper-appear vesper-appear--mask"
++                  className="public-headline-line public-appear public-appear--mask"
+                   style={{ '--d': '0.42s' }}
+                 >
+                   Human judgment behind
+                 </span>
+                 <span
+-                  className="vesper-headline-line vesper-appear vesper-appear--mask"
++                  className="public-headline-line public-appear public-appear--mask"
+                   style={{ '--d': '0.62s' }}
+                 >
+                   intelligent <em>AI systems.</em>
+@@ -132,17 +132,17 @@ export default function HomePage() {
+               </h1>
+ 
+               <p
+-                className="vesper-lede vesper-appear vesper-appear--soft"
++                className="public-lede public-appear public-appear--soft"
+                 style={{ '--d': '0.82s', animationDuration: '1.25s' }}
+               >
+                 Join AI Square&rsquo;s evaluator community — grading generative media, search
+                 relevance, voice synthesis, and spatial data with structured clarity.
+               </p>
+ 
+-              <div className="vesper-hero-actions">
++              <div className="public-hero-actions">
+                 <Link
+                   to="/careers"
+-                  className="vesper-btn vesper-btn-solid vesper-btn-hero vesper-appear vesper-appear--btn"
++                  className="public-btn public-btn-solid public-btn-hero public-appear public-appear--btn"
+                   style={{ '--d': '0.96s' }}
+                 >
+                   Explore Careers
+@@ -150,7 +150,7 @@ export default function HomePage() {
+                 </Link>
+                 <a
+                   href="#tracks"
+-                  className="vesper-btn vesper-btn-hero-ghost vesper-btn-hero vesper-appear vesper-appear--side"
++                  className="public-btn public-btn-hero-ghost public-btn-hero public-appear public-appear--side"
+                   style={{ '--d': '1.10s' }}
+                 >
+                   Evaluation Domains
+@@ -159,10 +159,10 @@ export default function HomePage() {
+             </div>
+           </div>
+ 
+-          {/* Minimal 3-Pillar Bottom Strip */}
+-          <div className="vesper-stats-bar">
++          {/* Highlights */}
++          <div className="public-stats-bar">
+             <div
+-              className="vesper-stat vesper-appear vesper-appear--stat"
++              className="public-stat public-appear public-appear--stat"
+               style={{ '--d': '1.12s' }}
+             >
+               <Layers size={17} color="#ffffff" strokeWidth={1.65} />
+@@ -170,7 +170,7 @@ export default function HomePage() {
+             </div>
+ 
+             <div
+-              className="vesper-stat vesper-appear vesper-appear--stat"
++              className="public-stat public-appear public-appear--stat"
+               style={{ '--d': '1.28s' }}
+             >
+               <SlidersHorizontal size={17} color="#ffffff" strokeWidth={1.65} />
+@@ -178,7 +178,7 @@ export default function HomePage() {
+             </div>
+ 
+             <div
+-              className="vesper-stat vesper-appear vesper-appear--stat"
++              className="public-stat public-appear public-appear--stat"
+               style={{ '--d': '1.44s' }}
+             >
+               <ShieldCheck size={17} color="#ffffff" strokeWidth={1.65} />
+@@ -188,9 +188,7 @@ export default function HomePage() {
+         </div>
+       </div>
+ 
+-      {/* =====================================================================
+-          2. MINIMAL EVALUATION DOMAINS (ZERO BADGES, CLEAN & BREATHABLE OVER STARS)
+-         ===================================================================== */}
++      {/* Evaluation domains */}
+       <section
+         id="tracks"
+         style={{
+@@ -223,7 +221,7 @@ export default function HomePage() {
+               >
+                 Domains
+               </span>
+-              <h2 className="vesper-section-h2" style={{ marginBottom: 8 }}>
++              <h2 className="public-section-h2" style={{ marginBottom: 8 }}>
+                 Focused roles across <em>modern AI</em>
+               </h2>
+               <p style={{ margin: 0, color: '#8e8e98', fontSize: '0.94rem', lineHeight: 1.6 }}>
+@@ -231,49 +229,49 @@ export default function HomePage() {
+               </p>
+             </div>
+ 
+-            <Link to="/careers" className="vesper-btn vesper-btn-ghost">
++            <Link to="/careers" className="public-btn public-btn-ghost">
+               View All Roles
+               <ArrowUpRight size={14} style={{ marginLeft: 6 }} />
+             </Link>
+           </div>
+ 
+-          {/* Ultra-Minimal 2-Column / 4-Column Hairline Grid — No Badges, No Clutter */}
+-          <div className="vesper-minimal-domains">
++          {/* Role grid */}
++          <div className="public-minimal-domains">
+             {WORK_DOMAINS.map((role, index) => {
+               const Icon = role.Icon;
+               return (
+                 <Link
+                   key={role.id}
+                   to={`/careers?track=${encodeURIComponent(role.title)}`}
+-                  className="vesper-minimal-domain-card scroll-reveal"
++                  className="public-minimal-domain-card scroll-reveal"
+                   style={{ '--reveal-delay': `${(index % 4) * 55}ms` }}
+                 >
+-                  <div className="vesper-minimal-domain-top">
+-                    <span className="vesper-minimal-domain-icon">
++                  <div className="public-minimal-domain-top">
++                    <span className="public-minimal-domain-icon">
+                       <Icon size={17} strokeWidth={1.65} />
+                     </span>
+                     <ArrowUpRight
+                       size={15}
+-                      className="vesper-minimal-domain-arrow"
++                      className="public-minimal-domain-arrow"
+                       aria-hidden="true"
+                     />
+                   </div>
+ 
+                   <div>
+-                    <h3 className="vesper-minimal-domain-title">{role.title}</h3>
+-                    <p className="vesper-minimal-domain-desc">{role.summary}</p>
++                    <h3 className="public-minimal-domain-title">{role.title}</h3>
++                    <p className="public-minimal-domain-desc">{role.summary}</p>
+                   </div>
+                 </Link>
+               );
+             })}
+ 
+-            {/* Minimal 8th Card — "...and more" */}
++            {/* General application card */}
+             <Link
+               to="/careers"
+-              className="vesper-minimal-domain-card vesper-minimal-domain-card--more scroll-reveal"
++              className="public-minimal-domain-card public-minimal-domain-card--more scroll-reveal"
+               style={{ '--reveal-delay': '165ms' }}
+             >
+-              <div className="vesper-minimal-domain-top">
++              <div className="public-minimal-domain-top">
+                 <span
+                   style={{
+                     fontSize: '0.72rem',
+@@ -286,14 +284,14 @@ export default function HomePage() {
+                 </span>
+                 <ArrowUpRight
+                   size={15}
+-                  className="vesper-minimal-domain-arrow"
++                  className="public-minimal-domain-arrow"
+                   aria-hidden="true"
+                 />
+               </div>
+ 
+               <div>
+-                <h3 className="vesper-minimal-domain-title">And More Emerging Tracks</h3>
+-                <p className="vesper-minimal-domain-desc">
++                <h3 className="public-minimal-domain-title">And More Emerging Tracks</h3>
++                <p className="public-minimal-domain-desc">
+                   Submit a general evaluator application to be matched with upcoming multimodal and
+                   language cohorts.
+                 </p>
+@@ -303,12 +301,10 @@ export default function HomePage() {
+         </div>
+       </section>
+ 
+-      {/* =====================================================================
+-          3. MINIMAL 3-PILLAR VISION SECTION
+-         ===================================================================== */}
++      {/* How it works */}
+       <section style={{ padding: '24px 0 96px' }}>
+         <div className="container">
+-          <div className="vesper-vision-panel scroll-reveal">
++          <div className="public-vision-panel scroll-reveal">
+             <div style={{ maxWidth: 540, marginBottom: 28 }}>
+               <span
+                 style={{
+@@ -335,7 +331,7 @@ export default function HomePage() {
+ 
+             <div className="grid-3" style={{ gap: 18 }}>
+               {VISION_STEPS.map((item) => (
+-                <div key={item.step} className="vesper-vision-step">
++                <div key={item.step} className="public-vision-step">
+                   <div
+                     style={{
+                       fontSize: '0.72rem',
+diff --git a/src/styles/futuristic.css b/src/styles/futuristic.css
+index 230332c..a9da2f2 100644
+--- a/src/styles/futuristic.css
++++ b/src/styles/futuristic.css
+@@ -5,12 +5,12 @@
+  * ========================================================================== */
+ 
+ :root {
+-  --vesper-bg: #000000;
+-  --vesper-text: #ffffff;
+-  --vesper-muted: #9a9a9a;
+-  --vesper-stat: #d8d8d8;
+-  --vesper-border: rgba(255, 255, 255, 0.16);
+-  --vesper-border-soft: rgba(255, 255, 255, 0.12);
++  --public-bg: #000000;
++  --public-text: #ffffff;
++  --public-muted: #9a9a9a;
++  --public-stat: #d8d8d8;
++  --public-border: rgba(255, 255, 255, 0.16);
++  --public-border-soft: rgba(255, 255, 255, 0.12);
+ 
+   --logo-size: 15.5px;
+   --nav-size: 14px;
+@@ -18,10 +18,10 @@
+   --btn-size: 13.5px;
+   --btn-h: 40px;
+   --hero-btn-h: 42px;
+-  --vesper-h1: 50px;
+-  --vesper-lede: 15.5px;
+-  --vesper-badge: 12.5px;
+-  --vesper-stat-size: 13.5px;
++  --public-h1: 50px;
++  --public-lede: 15.5px;
++  --public-badge: 12.5px;
++  --public-stat-size: 13.5px;
+   --header-y: 22px;
+   --header-x: 40px;
+   --stats-x: 72px;
+@@ -53,7 +53,7 @@
+   --border-strong: rgba(255, 255, 255, 0.22);
+ }
+ 
+-.vesper-grain {
++.public-grain {
+   position: fixed;
+   inset: 0;
+   z-index: 90;
+@@ -228,7 +228,7 @@
+ /* ============================================================================
+  * 2. UPGRADED TOP COMMAND NAVBAR & LIQUID-METAL DOCK
+  * ========================================================================== */
+-.vesper-header {
++.public-header {
+   display: grid;
+   grid-template-columns: 1fr auto 1fr;
+   align-items: center;
+@@ -244,14 +244,14 @@
+   border-bottom: 1px solid transparent;
+ }
+ 
+-.vesper-hero-frame .vesper-header {
++.public-hero-frame .public-header {
+   position: fixed;
+   top: 0;
+   left: 0;
+   right: 0;
+ }
+ 
+-.vesper-header--scrolled {
++.public-header--scrolled {
+   padding: 11px var(--header-x);
+   background: rgba(6, 6, 9, 0.78);
+   backdrop-filter: blur(18px);
+@@ -259,7 +259,7 @@
+   border-bottom-color: rgba(255, 255, 255, 0.09);
+ }
+ 
+-.vesper-logo {
++.public-logo {
+   display: inline-flex;
+   align-items: center;
+   gap: 10px;
+@@ -271,7 +271,7 @@
+   text-decoration: none;
+ }
+ 
+-.vesper-logo-emblem {
++.public-logo-emblem {
+   width: 32px;
+   height: 32px;
+   border-radius: 9px;
+@@ -283,7 +283,7 @@
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+ }
+ 
+-.vesper-logo-tag {
++.public-logo-tag {
+   font-size: 10.5px;
+   font-weight: 500;
+   letter-spacing: 0.07em;
+@@ -291,13 +291,13 @@
+   color: #8a8a94;
+ }
+ 
+-.vesper-nav {
++.public-nav {
+   display: flex;
+   align-items: center;
+   justify-self: center;
+ }
+ 
+-.vesper-nav-dock {
++.public-nav-dock {
+   display: inline-flex;
+   align-items: center;
+   gap: 4px;
+@@ -310,12 +310,12 @@
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+ }
+ 
+-.vesper-mobile-only-link {
++.public-mobile-only-link {
+   display: none !important;
+ }
+ 
+ /* Refined Liquid-Metal Pill inside Dock & Standalone Chips */
+-.vesper-nav-pill {
++.public-nav-pill {
+   height: 34px;
+   padding: 0 15px;
+   border-radius: 7px;
+@@ -336,14 +336,14 @@
+ }
+ 
+ /* Standalone track chips outside the header dock keep subtle metallic rim */
+-:not(.vesper-nav-dock) > .vesper-nav-pill {
++:not(.public-nav-dock) > .public-nav-pill {
+   height: 36px;
+   border-color: rgba(255, 255, 255, 0.16);
+   background: linear-gradient(105deg, rgba(16, 16, 20, 0.85) 0%, rgba(38, 38, 44, 0.72) 100%);
+   color: #e4e4e7;
+ }
+ 
+-.vesper-nav-pill::before {
++.public-nav-pill::before {
+   content: '';
+   position: absolute;
+   inset: 0;
+@@ -353,31 +353,31 @@
+   pointer-events: none;
+ }
+ 
+-.vesper-nav-pill:hover {
++.public-nav-pill:hover {
+   color: #ffffff;
+   background: rgba(255, 255, 255, 0.08);
+ }
+ 
+-.vesper-nav-pill.active {
++.public-nav-pill.active {
+   border-color: rgba(228, 228, 235, 0.42);
+   background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.07) 100%);
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 12px rgba(0, 0, 0, 0.35);
+   color: #ffffff;
+ }
+ 
+-.vesper-nav-pill:hover::before {
++.public-nav-pill:hover::before {
+   transform: translateX(120%);
+ }
+ 
+-.vesper-header-right {
++.public-header-right {
+   justify-self: end;
+   display: inline-flex;
+   align-items: center;
+   gap: 8px;
+ }
+ 
+-/* Shared Vesper Metallic & Frosted Buttons */
+-.vesper-btn {
++/* Shared buttons */
++.public-btn {
+   position: relative;
+   isolation: isolate;
+   overflow: hidden;
+@@ -397,7 +397,7 @@
+   transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, color 0.35s ease;
+ }
+ 
+-.vesper-btn::after {
++.public-btn::after {
+   content: '';
+   position: absolute;
+   inset: 0;
+@@ -407,39 +407,39 @@
+   pointer-events: none;
+ }
+ 
+-.vesper-btn:hover::after {
++.public-btn:hover::after {
+   transform: translateX(130%);
+ }
+ 
+-.vesper-btn-solid {
++.public-btn-solid {
+   background: linear-gradient(180deg, #ffffff 0%, #e7e7e7 48%, #cfcfcf 100%);
+   color: #111111;
+   border: 1px solid #ffffff;
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+ }
+ 
+-.vesper-btn-solid:hover {
++.public-btn-solid:hover {
+   background: linear-gradient(180deg, #ffffff 0%, #f3f6ff 42%, #d5def2 100%);
+   border-color: #f2f6ff;
+   color: #000000;
+   box-shadow: inset 0 1px 0 #ffffff, 0 0 22px rgba(186, 208, 255, 0.35), 0 8px 18px rgba(255, 255, 255, 0.12);
+ }
+ 
+-.vesper-btn-ghost {
++.public-btn-ghost {
+   background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.45) 50%, rgba(160, 175, 200, 0.08));
+   color: #ffffff;
+   border: 1px solid rgba(198, 198, 198, 0.45);
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+ }
+ 
+-.vesper-btn-ghost:hover {
++.public-btn-ghost:hover {
+   background: linear-gradient(135deg, rgba(210, 225, 255, 0.18), rgba(0, 0, 0, 0.35) 48%, rgba(180, 195, 220, 0.16));
+   border-color: rgba(220, 230, 255, 0.75);
+   color: #ffffff;
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 20px rgba(170, 200, 255, 0.22);
+ }
+ 
+-.vesper-btn-hero-ghost {
++.public-btn-hero-ghost {
+   background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.5) 46%, rgba(150, 170, 200, 0.1));
+   color: #ffffff;
+   border: 1px solid rgba(198, 198, 198, 0.55);
+@@ -447,24 +447,24 @@
+   -webkit-backdrop-filter: blur(16px);
+ }
+ 
+-.vesper-btn-hero-ghost:hover {
++.public-btn-hero-ghost:hover {
+   border-color: rgba(220, 230, 255, 0.8);
+   color: #ffffff;
+   box-shadow: 0 0 24px rgba(170, 200, 255, 0.28);
+ }
+ 
+-.vesper-btn-hero {
++.public-btn-hero {
+   height: var(--hero-btn-h);
+   padding: 0 18px;
+ }
+ 
+ /* Burger Button */
+-.vesper-burger {
++.public-burger {
+   display: none;
+   width: 42px;
+   height: 42px;
+   border-radius: 6px;
+-  border: 1px solid var(--vesper-border);
++  border: 1px solid var(--public-border);
+   background: rgba(8, 8, 8, 0.55);
+   z-index: 80;
+   cursor: pointer;
+@@ -474,7 +474,7 @@
+   padding: 0;
+ }
+ 
+-.vesper-burger span {
++.public-burger span {
+   display: block;
+   width: 16px;
+   height: 1.5px;
+@@ -483,24 +483,24 @@
+   transition: transform 0.25s ease, opacity 0.2s ease;
+ }
+ 
+-.vesper-burger.open span:nth-child(1) {
++.public-burger.open span:nth-child(1) {
+   transform: translateY(6.5px) rotate(45deg);
+ }
+-.vesper-burger.open span:nth-child(2) {
++.public-burger.open span:nth-child(2) {
+   opacity: 0;
+ }
+-.vesper-burger.open span:nth-child(3) {
++.public-burger.open span:nth-child(3) {
+   transform: translateY(-6.5px) rotate(-45deg);
+ }
+ 
+-.vesper-menu-backdrop {
++.public-menu-backdrop {
+   display: none;
+ }
+ 
+ /* ============================================================================
+  * 3. VESPER HERO VIEWPORT & ENTRANCE MOTION
+  * ========================================================================== */
+-.vesper-hero-frame {
++.public-hero-frame {
+   position: relative;
+   width: 100%;
+   min-height: 100vh;
+@@ -509,7 +509,7 @@
+   overflow: hidden;
+ }
+ 
+-.vesper-hero-video {
++.public-hero-video {
+   position: absolute;
+   inset: 0;
+   width: 100%;
+@@ -519,7 +519,7 @@
+   z-index: 0;
+ }
+ 
+-.vesper-page-grid {
++.public-page-grid {
+   position: relative;
+   z-index: 2;
+   display: grid;
+@@ -528,7 +528,7 @@
+   min-height: 100dvh;
+ }
+ 
+-.vesper-hero-stage {
++.public-hero-stage {
+   display: flex;
+   align-items: flex-end;
+   justify-content: center;
+@@ -536,7 +536,7 @@
+   min-height: 0;
+ }
+ 
+-.vesper-hero-copy {
++.public-hero-copy {
+   position: relative;
+   z-index: 1;
+   display: flex;
+@@ -547,7 +547,7 @@
+   width: 100%;
+ }
+ 
+-.vesper-badge {
++.public-badge {
+   display: inline-flex;
+   align-items: center;
+   gap: 8px;
+@@ -557,19 +557,19 @@
+   border-radius: 5px;
+   background: linear-gradient(90deg, #7d7d7d 0%, #2a2a2a 52%, #0a0a0a 100%);
+   color: #f2f2f2;
+-  font-size: var(--vesper-badge);
++  font-size: var(--public-badge);
+   font-weight: 400;
+   letter-spacing: -0.01em;
+ }
+ 
+-.vesper-badge-star {
++.public-badge-star {
+   filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.45));
+-  animation: vesper-in-star 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
++  animation: public-in-star 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
+ }
+ 
+-.vesper-h1 {
++.public-h1 {
+   font-family: var(--font-sans);
+-  font-size: var(--vesper-h1);
++  font-size: var(--public-h1);
+   font-weight: 500;
+   letter-spacing: -0.045em;
+   line-height: 1.12;
+@@ -580,33 +580,33 @@
+   margin: 0;
+ }
+ 
+-.vesper-headline-line {
++.public-headline-line {
+   display: block;
+   overflow: hidden;
+   padding: 0.06em 0.15em 0.14em;
+ }
+ 
+-.vesper-h1 em {
++.public-h1 em {
+   font-family: var(--font-serif-italic);
+   font-style: italic;
+   font-weight: 400;
+   font-size: 1.08em;
+   letter-spacing: -0.03em;
+   color: #9a9a9a;
+-  animation: vesper-in-em 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.72s both;
++  animation: public-in-em 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.72s both;
+ }
+ 
+-.vesper-lede {
++.public-lede {
+   max-width: var(--lede-max);
+   margin: 18px 0 0;
+   color: #9a9a9a;
+-  font-size: var(--vesper-lede);
++  font-size: var(--public-lede);
+   font-weight: 400;
+   line-height: 1.55;
+   letter-spacing: -0.015em;
+ }
+ 
+-.vesper-hero-actions {
++.public-hero-actions {
+   display: flex;
+   flex-wrap: wrap;
+   justify-content: center;
+@@ -614,7 +614,7 @@
+   margin-top: 26px;
+ }
+ 
+-.vesper-stats-bar {
++.public-stats-bar {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+@@ -624,17 +624,17 @@
+   color: #d8d8d8;
+ }
+ 
+-.vesper-stat {
++.public-stat {
+   display: inline-flex;
+   align-items: center;
+   gap: 14px;
+-  font-size: var(--vesper-stat-size);
++  font-size: var(--public-stat-size);
+   letter-spacing: -0.015em;
+   white-space: nowrap;
+ }
+ 
+ /* Shared Editorial Section Headers & Pills */
+-.vesper-eyebrow-pill {
++.public-eyebrow-pill {
+   display: inline-flex;
+   align-items: center;
+   gap: 8px;
+@@ -648,7 +648,7 @@
+   margin-bottom: 14px;
+ }
+ 
+-.vesper-section-h2 {
++.public-section-h2 {
+   font-size: clamp(1.85rem, 3.3vw, 2.7rem);
+   font-weight: 500;
+   letter-spacing: -0.038em;
+@@ -657,7 +657,7 @@
+   margin: 0 0 12px;
+ }
+ 
+-.vesper-section-h2 em {
++.public-section-h2 em {
+   font-family: var(--font-serif-italic);
+   font-style: italic;
+   font-weight: 400;
+@@ -665,7 +665,7 @@
+   font-size: 1.08em;
+ }
+ 
+-.vesper-domain-tag {
++.public-domain-tag {
+   font-size: 0.7rem;
+   font-weight: 500;
+   color: #b4b4be;
+@@ -677,7 +677,7 @@
+ }
+ 
+ /* Interactive Evaluator Workbench & Device Preview */
+-.vesper-workbench-shell {
++.public-workbench-shell {
+   display: grid;
+   grid-template-columns: 300px minmax(0, 1fr);
+   gap: 18px;
+@@ -690,13 +690,13 @@
+   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+ }
+ 
+-.vesper-workbench-rail {
++.public-workbench-rail {
+   display: flex;
+   flex-direction: column;
+   gap: 6px;
+ }
+ 
+-.vesper-workbench-tab {
++.public-workbench-tab {
+   display: flex;
+   align-items: center;
+   gap: 10px;
+@@ -714,46 +714,46 @@
+   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+ }
+ 
+-.vesper-workbench-tab:hover {
++.public-workbench-tab:hover {
+   background: rgba(255, 255, 255, 0.05);
+   color: #e4e4e7;
+ }
+ 
+-.vesper-workbench-tab.active {
++.public-workbench-tab.active {
+   background: linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.04));
+   border-color: rgba(255, 255, 255, 0.2);
+   color: #ffffff;
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+ }
+ 
+-.vesper-workbench-tab-num {
++.public-workbench-tab-num {
+   font-size: 0.7rem;
+   font-weight: 600;
+   color: #6b6b76;
+   min-width: 18px;
+ }
+ 
+-.vesper-workbench-tab.active .vesper-workbench-tab-num {
++.public-workbench-tab.active .public-workbench-tab-num {
+   color: #d4d4d8;
+ }
+ 
+-.vesper-workbench-tab-label {
++.public-workbench-tab-label {
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+ }
+ 
+-.vesper-workbench-stage {
++.public-workbench-stage {
+   display: flex;
+   flex-direction: column;
+   border-radius: 14px;
+   background: #0d0d11;
+   border: 1px solid rgba(255, 255, 255, 0.11);
+   overflow: hidden;
+-  animation: vesper-in-soft 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
++  animation: public-in-soft 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+ }
+ 
+-.vesper-workbench-topbar {
++.public-workbench-topbar {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+@@ -763,14 +763,14 @@
+   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+ }
+ 
+-.vesper-window-dot {
++.public-window-dot {
+   width: 8px;
+   height: 8px;
+   border-radius: 999px;
+   background: rgba(255, 255, 255, 0.22);
+ }
+ 
+-.vesper-workbench-body {
++.public-workbench-body {
+   padding: 20px;
+   display: flex;
+   flex-direction: column;
+@@ -779,32 +779,32 @@
+   justify-content: space-between;
+ }
+ 
+-.vesper-workbench-prompt {
++.public-workbench-prompt {
+   padding: 15px 17px;
+   border-radius: 11px;
+   background: rgba(255, 255, 255, 0.035);
+   border: 1px solid rgba(255, 255, 255, 0.09);
+ }
+ 
+-.vesper-workbench-compare {
++.public-workbench-compare {
+   display: grid;
+   grid-template-columns: repeat(2, minmax(0, 1fr));
+   gap: 14px;
+ }
+ 
+-.vesper-output-card {
++.public-output-card {
+   padding: 16px;
+   border-radius: 12px;
+   background: #121217;
+   border: 1px solid rgba(255, 255, 255, 0.08);
+ }
+ 
+-.vesper-output-card--preferred {
++.public-output-card--preferred {
+   background: linear-gradient(160deg, rgba(255, 255, 255, 0.08) 0%, rgba(18, 18, 24, 0.95) 100%);
+   border-color: rgba(255, 255, 255, 0.24);
+ }
+ 
+-.vesper-verdict-chip {
++.public-verdict-chip {
+   font-size: 0.7rem;
+   font-weight: 500;
+   padding: 3px 8px;
+@@ -814,13 +814,13 @@
+   border: 1px solid rgba(255, 255, 255, 0.1);
+ }
+ 
+-.vesper-verdict-chip--pass {
++.public-verdict-chip--pass {
+   color: #ffffff;
+   background: rgba(255, 255, 255, 0.14);
+   border-color: rgba(255, 255, 255, 0.28);
+ }
+ 
+-.vesper-workbench-footer {
++.public-workbench-footer {
+   display: flex;
+   flex-wrap: wrap;
+   align-items: center;
+@@ -831,13 +831,13 @@
+ }
+ 
+ /* Bento Role Grid Below Hero */
+-.vesper-bento-grid {
++.public-bento-grid {
+   display: grid;
+   grid-template-columns: repeat(4, minmax(0, 1fr));
+   gap: 16px;
+ }
+ 
+-.vesper-role-card {
++.public-role-card {
+   display: flex;
+   flex-direction: column;
+   justify-content: space-between;
+@@ -851,19 +851,19 @@
+   transition: border-color 0.28s ease, background 0.28s ease, transform 0.28s ease, box-shadow 0.28s ease;
+ }
+ 
+-.vesper-role-card:hover {
++.public-role-card:hover {
+   background: rgba(18, 18, 24, 0.92);
+   border-color: rgba(255, 255, 255, 0.28);
+   transform: translateY(-3px);
+   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+ }
+ 
+-.vesper-role-card--cta {
++.public-role-card--cta {
+   background: linear-gradient(155deg, rgba(28, 28, 35, 0.9) 0%, rgba(11, 11, 15, 0.88) 100%);
+   border: 1px solid rgba(255, 255, 255, 0.22);
+ }
+ 
+-.vesper-role-icon {
++.public-role-icon {
+   width: 38px;
+   height: 38px;
+   border-radius: 10px;
+@@ -875,7 +875,7 @@
+   color: #ffffff;
+ }
+ 
+-.vesper-card-link {
++.public-card-link {
+   display: inline-flex;
+   align-items: center;
+   gap: 5px;
+@@ -886,19 +886,19 @@
+   transition: color 0.2s ease, gap 0.2s ease;
+ }
+ 
+-.vesper-role-card:hover .vesper-card-link {
++.public-role-card:hover .public-card-link {
+   color: #ffffff;
+   gap: 7px;
+ }
+ 
+ /* Ultra-Minimal Domains Grid Over Starfield */
+-.vesper-minimal-domains {
++.public-minimal-domains {
+   display: grid;
+   grid-template-columns: repeat(4, minmax(0, 1fr));
+   gap: 14px;
+ }
+ 
+-.vesper-minimal-domain-card {
++.public-minimal-domain-card {
+   display: flex;
+   flex-direction: column;
+   justify-content: space-between;
+@@ -914,25 +914,25 @@
+   transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+ }
+ 
+-.vesper-minimal-domain-card:hover {
++.public-minimal-domain-card:hover {
+   background: rgba(18, 18, 24, 0.72);
+   border-color: rgba(255, 255, 255, 0.24);
+   transform: translateY(-2px);
+ }
+ 
+-.vesper-minimal-domain-card--more {
++.public-minimal-domain-card--more {
+   background: rgba(18, 18, 24, 0.56);
+   border-style: dashed;
+   border-color: rgba(255, 255, 255, 0.18);
+ }
+ 
+-.vesper-minimal-domain-top {
++.public-minimal-domain-top {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+ }
+ 
+-.vesper-minimal-domain-icon {
++.public-minimal-domain-icon {
+   width: 34px;
+   height: 34px;
+   border-radius: 9px;
+@@ -944,17 +944,17 @@
+   color: #ffffff;
+ }
+ 
+-.vesper-minimal-domain-arrow {
++.public-minimal-domain-arrow {
+   color: #6b6b76;
+   transition: color 0.22s ease, transform 0.22s ease;
+ }
+ 
+-.vesper-minimal-domain-card:hover .vesper-minimal-domain-arrow {
++.public-minimal-domain-card:hover .public-minimal-domain-arrow {
+   color: #ffffff;
+   transform: translate(2px, -2px);
+ }
+ 
+-.vesper-minimal-domain-title {
++.public-minimal-domain-title {
+   font-size: 1.02rem;
+   font-weight: 500;
+   letter-spacing: -0.02em;
+@@ -962,7 +962,7 @@
+   margin: 0 0 6px;
+ }
+ 
+-.vesper-minimal-domain-desc {
++.public-minimal-domain-desc {
+   margin: 0;
+   font-size: 0.85rem;
+   color: #8f8f99;
+@@ -970,19 +970,19 @@
+ }
+ 
+ @media (min-width: 901px) and (max-width: 1279px) {
+-  .vesper-minimal-domains {
++  .public-minimal-domains {
+     grid-template-columns: repeat(2, minmax(0, 1fr));
+   }
+ }
+ 
+ @media (max-width: 900px) {
+-  .vesper-minimal-domains {
++  .public-minimal-domains {
+     grid-template-columns: 1fr;
+   }
+ }
+ 
+ /* Methodology / Vision Panel */
+-.vesper-vision-panel {
++.public-vision-panel {
+   padding: 36px 32px;
+   border-radius: 16px;
+   background: rgba(9, 9, 13, 0.52);
+@@ -991,15 +991,15 @@
+   border: 1px solid rgba(255, 255, 255, 0.09);
+ }
+ 
+-.vesper-vision-step {
++.public-vision-step {
+   padding: 20px;
+   border-radius: 12px;
+   background: rgba(16, 16, 22, 0.62);
+   border: 1px solid rgba(255, 255, 255, 0.07);
+ }
+ 
+-/* Exact Vesper Entrance Keyframes */
+-.vesper-appear {
++/* Entrance animations */
++.public-appear {
+   opacity: 1;
+   animation-duration: 1.05s;
+   animation-fill-mode: both;
+@@ -1007,65 +1007,65 @@
+   animation-delay: var(--d, 0.08s);
+ }
+ 
+-.vesper-appear--scale { animation-name: vesper-in-scale; }
+-.vesper-appear--soft { animation-name: vesper-in-soft; }
+-.vesper-appear--mask { animation-name: vesper-in-mask; }
+-.vesper-appear--pop { animation-name: vesper-in-pop; }
+-.vesper-appear--btn { animation-name: vesper-in-btn; }
+-.vesper-appear--side { animation-name: vesper-in-side; }
+-.vesper-appear--stat { animation-name: vesper-in-stat; }
++.public-appear--scale { animation-name: public-in-scale; }
++.public-appear--soft { animation-name: public-in-soft; }
++.public-appear--mask { animation-name: public-in-mask; }
++.public-appear--pop { animation-name: public-in-pop; }
++.public-appear--btn { animation-name: public-in-btn; }
++.public-appear--side { animation-name: public-in-side; }
++.public-appear--stat { animation-name: public-in-stat; }
+ 
+-.vesper-appear.is-in {
++.public-appear.is-in {
+   animation: none !important;
+   opacity: 1 !important;
+   transform: none !important;
+   filter: none !important;
+ }
+ 
+-@keyframes vesper-in-scale {
++@keyframes public-in-scale {
+   from { opacity: 0; transform: scale(0.84); }
+   to { opacity: 1; transform: scale(1); }
+ }
+-@keyframes vesper-in-soft {
++@keyframes public-in-soft {
+   from { opacity: 0; transform: translateY(14px); }
+   to { opacity: 1; transform: translateY(0); }
+ }
+-@keyframes vesper-in-mask {
++@keyframes public-in-mask {
+   from { opacity: 0; transform: translateY(40%); }
+   to { opacity: 1; transform: translateY(0); }
+ }
+-@keyframes vesper-in-pop {
++@keyframes public-in-pop {
+   0% { opacity: 0; transform: scale(0.9); }
+   70% { opacity: 1; transform: scale(1.03); }
+   100% { opacity: 1; transform: scale(1); }
+ }
+-@keyframes vesper-in-btn {
++@keyframes public-in-btn {
+   from { opacity: 0; transform: translateY(18px) scale(0.94); }
+   to { opacity: 1; transform: translateY(0) scale(1); }
+ }
+-@keyframes vesper-in-side {
++@keyframes public-in-side {
+   from { opacity: 0; transform: translateX(22px); }
+   to { opacity: 1; transform: translateX(0); }
+ }
+-@keyframes vesper-in-stat {
++@keyframes public-in-stat {
+   from { opacity: 0; transform: translateY(20px); }
+   to { opacity: 1; transform: translateY(0); }
+ }
+-@keyframes vesper-in-star {
++@keyframes public-in-star {
+   0% { opacity: 0; transform: scale(0.2) rotate(-50deg); }
+   65% { opacity: 1; transform: scale(1.2) rotate(8deg); }
+   100% { opacity: 1; transform: scale(1) rotate(0deg); }
+ }
+-@keyframes vesper-in-em {
++@keyframes public-in-em {
+   from { opacity: 0.35; filter: blur(4px); }
+   to { opacity: 1; filter: blur(0); }
+ }
+ 
+-/* Vesper Responsive Scale */
++/* Responsive adjustments */
+ @media (min-width: 1600px) {
+   :root {
+-    --vesper-h1: 64px;
+-    --vesper-lede: 18px;
++    --public-h1: 64px;
++    --public-lede: 18px;
+     --header-y: 28px;
+     --header-x: 64px;
+     --stats-x: 96px;
+@@ -1081,21 +1081,21 @@
+     --nav-h: 36px;
+     --btn-size: 13px;
+     --btn-h: 38px;
+-    --vesper-h1: 42px;
++    --public-h1: 42px;
+     --header-y: 16px;
+     --header-x: 24px;
+     --stats-x: 32px;
+     --stats-y: 26px;
+   }
+-  .vesper-bento-grid {
++  .public-bento-grid {
+     grid-template-columns: repeat(2, minmax(0, 1fr));
+   }
+ }
+ 
+ @media (max-width: 900px) {
+   :root {
+-    --vesper-h1: 36px;
+-    --vesper-lede: 16px;
++    --public-h1: 36px;
++    --public-lede: 16px;
+     --header-y: 16px;
+     --header-x: 18px;
+     --stats-x: 20px;
+@@ -1103,30 +1103,30 @@
+     --hero-gap: 36px;
+   }
+ 
+-  body.vesper-menu-open {
++  body.public-menu-open {
+     overflow: hidden;
+   }
+ 
+-  .vesper-header {
++  .public-header {
+     grid-template-columns: 1fr auto;
+     gap: 8px;
+   }
+ 
+-  .vesper-desktop-login {
++  .public-desktop-login {
+     display: none;
+   }
+ 
+-  .vesper-burger {
++  .public-burger {
+     display: grid;
+   }
+ 
+-  .vesper-logo,
+-  .vesper-header-right {
++  .public-logo,
++  .public-header-right {
+     position: relative;
+     z-index: 80;
+   }
+ 
+-  .vesper-menu-backdrop {
++  .public-menu-backdrop {
+     display: block;
+     position: fixed;
+     inset: 0;
+@@ -1137,14 +1137,14 @@
+     transition: opacity 0.28s ease, visibility 0.28s ease;
+   }
+ 
+-  .vesper-menu-backdrop.open {
++  .public-menu-backdrop.open {
+     opacity: 1;
+     visibility: visible;
+     backdrop-filter: blur(24px);
+     -webkit-backdrop-filter: blur(24px);
+   }
+ 
+-  .vesper-nav {
++  .public-nav {
+     position: fixed;
+     inset: 0;
+     z-index: 50;
+@@ -1158,13 +1158,13 @@
+     transition: opacity 0.25s ease, visibility 0.25s ease;
+   }
+ 
+-  .vesper-nav.open {
++  .public-nav.open {
+     opacity: 1;
+     visibility: visible;
+     pointer-events: auto;
+   }
+ 
+-  .vesper-nav-dock {
++  .public-nav-dock {
+     width: 100%;
+     flex-direction: column;
+     gap: 10px;
+@@ -1176,7 +1176,7 @@
+     box-shadow: none;
+   }
+ 
+-  .vesper-nav .vesper-nav-pill {
++  .public-nav .public-nav-pill {
+     width: 100%;
+     height: 52px;
+     font-size: 17px;
+@@ -1185,59 +1185,59 @@
+     background: rgba(20, 20, 26, 0.88);
+   }
+ 
+-  .vesper-logo-tag {
++  .public-logo-tag {
+     display: none;
+   }
+ 
+-  .vesper-workbench-shell {
++  .public-workbench-shell {
+     grid-template-columns: 1fr;
+   }
+ 
+-  .vesper-workbench-rail {
++  .public-workbench-rail {
+     flex-direction: row;
+     overflow-x: auto;
+     padding-bottom: 4px;
+   }
+ 
+-  .vesper-workbench-tab {
++  .public-workbench-tab {
+     width: auto;
+     flex-shrink: 0;
+   }
+ 
+-  .vesper-workbench-compare {
++  .public-workbench-compare {
+     grid-template-columns: 1fr;
+   }
+ 
+-  .vesper-mobile-only-link {
++  .public-mobile-only-link {
+     display: inline-flex !important;
+   }
+ 
+-  .vesper-stats-bar {
++  .public-stats-bar {
+     flex-direction: column;
+     align-items: center;
+     gap: 14px;
+   }
+ 
+-  .vesper-stat {
++  .public-stat {
+     white-space: normal;
+     text-align: center;
+   }
+ 
+-  .vesper-bento-grid {
++  .public-bento-grid {
+     grid-template-columns: 1fr;
+   }
+ }
+ 
+ @media (max-width: 560px) {
+   :root {
+-    --vesper-h1: 33px;
++    --public-h1: 33px;
+     --header-x: 16px;
+   }
+-  .vesper-hero-actions {
++  .public-hero-actions {
+     flex-direction: column;
+     width: 100%;
+   }
+-  .vesper-hero-actions .vesper-btn {
++  .public-hero-actions .public-btn {
+     width: 100%;
+   }
+ }
+@@ -1245,7 +1245,7 @@
+ /* ============================================================================
+  * 4. ZONE 2 — AURORA TWO-COLUMN SPLIT-SCREEN AUTH GATEWAYS
+  * ========================================================================== */
+-.aurora-auth-main {
++.login-main {
+   display: flex;
+   min-height: 100vh;
+   width: 100%;
+@@ -1256,14 +1256,14 @@
+ }
+ 
+ @media (min-width: 1024px) {
+-  .aurora-auth-main {
++  .login-main {
+     height: 100vh;
+     overflow: hidden;
+     padding: 16px;
+   }
+ }
+ 
+-.aurora-left-hero {
++.login-left-hero {
+   display: none;
+   position: relative;
+   width: 52%;
+@@ -1278,12 +1278,12 @@
+ }
+ 
+ @media (min-width: 1024px) {
+-  .aurora-left-hero {
++  .login-left-hero {
+     display: flex;
+   }
+ }
+ 
+-.aurora-bg-video {
++.login-bg-video {
+   position: absolute;
+   inset: 0;
+   width: 100%;
+@@ -1292,7 +1292,7 @@
+   pointer-events: none;
+ }
+ 
+-.aurora-hero-inner {
++.login-hero-inner {
+   position: relative;
+   z-index: 10;
+   width: 100%;
+@@ -1303,7 +1303,7 @@
+   gap: 26px;
+ }
+ 
+-.aurora-brand-row {
++.login-brand-row {
+   display: inline-flex;
+   align-items: center;
+   gap: 9px;
+@@ -1313,7 +1313,7 @@
+   color: #ffffff;
+ }
+ 
+-.aurora-hero-title {
++.login-hero-title {
+   font-size: 2.25rem;
+   font-weight: 500;
+   letter-spacing: -0.03em;
+@@ -1322,7 +1322,7 @@
+   white-space: nowrap;
+ }
+ 
+-.aurora-hero-desc {
++.login-hero-desc {
+   margin: 0;
+   font-size: 0.875rem;
+   line-height: 1.6;
+@@ -1330,13 +1330,13 @@
+   padding: 0 12px;
+ }
+ 
+-.aurora-steps-stack {
++.login-steps-stack {
+   width: 100%;
+   display: grid;
+   gap: 10px;
+ }
+ 
+-.aurora-step-pill {
++.login-step-pill {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+@@ -1348,13 +1348,13 @@
+   font-weight: 500;
+ }
+ 
+-.aurora-step-pill.active {
++.login-step-pill.active {
+   background: #ffffff;
+   color: #000000;
+   border: 1px solid #ffffff;
+ }
+ 
+-.aurora-step-num {
++.login-step-num {
+   width: 24px;
+   height: 24px;
+   border-radius: 999px;
+@@ -1368,12 +1368,12 @@
+   flex-shrink: 0;
+ }
+ 
+-.aurora-step-pill.active .aurora-step-num {
++.login-step-pill.active .login-step-num {
+   background: #000000;
+   color: #ffffff;
+ }
+ 
+-@keyframes auroraFadeUp {
++@keyframes loginFadeUp {
+   from {
+     opacity: 0;
+     transform: translateY(10px);
+@@ -1384,12 +1384,12 @@
+   }
+ }
+ 
+-.aurora-stagger-item {
+-  animation: auroraFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) var(--ad, 0.2s) backwards;
++.login-stagger-item {
++  animation: loginFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) var(--ad, 0.2s) backwards;
+ }
+ 
+ /* Right Form Column */
+-.aurora-right-form {
++.login-right-form {
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+@@ -1400,35 +1400,35 @@
+ }
+ 
+ @media (min-width: 640px) {
+-  .aurora-right-form {
++  .login-right-form {
+     padding: 40px 48px;
+   }
+ }
+ 
+ @media (min-width: 1024px) {
+-  .aurora-right-form {
++  .login-right-form {
+     padding: 24px 64px;
+   }
+ }
+ 
+-.aurora-form-container {
++.login-form-container {
+   width: 100%;
+   max-width: 480px;
+   animation: pageEnter 0.65s ease-out backwards;
+ }
+ 
+-.aurora-top-back {
++.login-top-back {
+   font-size: 0.82rem;
+   color: rgba(255, 255, 255, 0.52);
+   text-decoration: none;
+   transition: color 0.18s ease;
+ }
+ 
+-.aurora-top-back:hover {
++.login-top-back:hover {
+   color: #ffffff;
+ }
+ 
+-.aurora-form-heading {
++.login-form-heading {
+   font-size: 1.85rem;
+   font-weight: 500;
+   letter-spacing: -0.03em;
+@@ -1436,41 +1436,41 @@
+   margin: 0 0 6px;
+ }
+ 
+-.aurora-form-sub {
++.login-form-sub {
+   margin: 0;
+   font-size: 0.875rem;
+   color: rgba(255, 255, 255, 0.42);
+ }
+ 
+-.aurora-fields {
++.login-fields {
+   display: grid;
+   gap: 18px;
+ }
+ 
+-.aurora-grid-2 {
++.login-grid-2 {
+   display: grid;
+   grid-template-columns: repeat(2, minmax(0, 1fr));
+   gap: 14px;
+ }
+ 
+ @media (max-width: 560px) {
+-  .aurora-grid-2 {
++  .login-grid-2 {
+     grid-template-columns: 1fr;
+   }
+ }
+ 
+-.aurora-input-group {
++.login-input-group {
+   display: grid;
+   gap: 7px;
+ }
+ 
+-.aurora-input-group label {
++.login-input-group label {
+   font-size: 0.85rem;
+   font-weight: 500;
+   color: #ffffff;
+ }
+ 
+-.aurora-input {
++.login-input {
+   width: 100%;
+   height: 46px;
+   padding: 0 16px;
+@@ -1483,22 +1483,22 @@
+   transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+ }
+ 
+-.aurora-input::placeholder {
++.login-input::placeholder {
+   color: rgba(255, 255, 255, 0.24);
+ }
+ 
+-.aurora-input:focus {
++.login-input:focus {
+   background: #202020;
+   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
+ }
+ 
+-.aurora-pwd-wrap {
++.login-pwd-wrap {
+   position: relative;
+   display: flex;
+   align-items: center;
+ }
+ 
+-.aurora-eye-btn {
++.login-eye-btn {
+   position: absolute;
+   right: 12px;
+   background: none;
+@@ -1511,16 +1511,16 @@
+   justify-content: center;
+ }
+ 
+-.aurora-eye-btn:hover {
++.login-eye-btn:hover {
+   color: #ffffff;
+ }
+ 
+-.aurora-helper-text {
++.login-helper-text {
+   font-size: 0.76rem;
+   color: rgba(255, 255, 255, 0.36);
+ }
+ 
+-.aurora-submit-btn {
++.login-submit-btn {
+   width: 100%;
+   height: 54px;
+   margin-top: 6px;
+@@ -1534,26 +1534,26 @@
+   transition: background 0.2s ease, transform 0.14s ease;
+ }
+ 
+-.aurora-submit-btn:hover:not(:disabled) {
++.login-submit-btn:hover:not(:disabled) {
+   background: rgba(255, 255, 255, 0.9);
+ }
+ 
+-.aurora-submit-btn:active:not(:disabled) {
++.login-submit-btn:active:not(:disabled) {
+   transform: scale(0.985);
+ }
+ 
+-.aurora-submit-btn:disabled {
++.login-submit-btn:disabled {
+   opacity: 0.55;
+   cursor: not-allowed;
+ }
+ 
+-.aurora-divider {
++.login-divider {
+   position: relative;
+   text-align: center;
+   margin: 24px 0 18px;
+ }
+ 
+-.aurora-divider::before {
++.login-divider::before {
+   content: '';
+   position: absolute;
+   left: 0;
+@@ -1562,7 +1562,7 @@
+   border-top: 1px solid rgba(255, 255, 255, 0.1);
+ }
+ 
+-.aurora-divider span {
++.login-divider span {
+   position: relative;
+   background: #000000;
+   padding: 0 14px;
+@@ -1573,7 +1573,7 @@
+   color: rgba(255, 255, 255, 0.38);
+ }
+ 
+-.aurora-alert {
++.login-alert {
+   display: flex;
+   align-items: flex-start;
+   gap: 10px;
+@@ -1583,16 +1583,14 @@
+   margin-bottom: 18px;
+ }
+ 
+-.aurora-alert-error {
++.login-alert-error {
+   background: rgba(239, 68, 68, 0.14);
+   border: 1px solid rgba(248, 113, 113, 0.35);
+   color: #fecaca;
+ }
+ 
+ /* ============================================================================
+- * 5. ZONE 3 — OBSIDIAN DARK PORTAL WORKSPACE (.portal-theme-cosmic)
+- *    100% cohesive with Vesper & Aurora (Pure zinc-black, #1A1A1A inputs,
+- *    #FFFFFF primary CTA, zero purple/violet/amber neon)
++ * Dark portal workspace (.portal-theme-cosmic)
+  * ========================================================================== */
+ .portal-shell.portal-theme-cosmic {
+   --bg-canvas: #09090B;
+@@ -1859,10 +1857,10 @@
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+-  .vesper-appear,
+-  .vesper-badge-star,
+-  .vesper-h1 em,
+-  .aurora-stagger-item {
++  .public-appear,
++  .public-badge-star,
++  .public-h1 em,
++  .login-stagger-item {
+     animation: none !important;
+     opacity: 1 !important;
+     transform: none !important;
+diff --git a/src/styles/neumorphic.css b/src/styles/neumorphic.css
+index bc792b5..784decb 100644
+--- a/src/styles/neumorphic.css
++++ b/src/styles/neumorphic.css
+@@ -10,7 +10,7 @@
+   --font-headline: 'Inter Tight', 'Inter', 'Geist Sans', system-ui, sans-serif;
+   --font-serif-italic: 'Instrument Serif', 'Times New Roman', Times, serif;
+ 
+-  /* Calm Cream Daylight Tokens */
++  /* Light theme tokens */
+   --bg-canvas: #FBF7F0;
+   --bg-canvas-alt: #F4EFE6;
+   --surface-raised: #FFFFFF;
+-- 
+2.47.3
+
+
+From 3e32d9e9f7ced8a8f0a5c25c19a367b0b718d3b0 Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:49:16 +0000
+Subject: [PATCH 3/9] refactor: simplify user-facing copy and theme labels
+
+---
+ server/routes/auth.js                   |  2 +-
+ src/App.jsx                             |  4 ++--
+ src/components/AdminLayout.jsx          |  4 ++--
+ src/components/CandidateExamLayout.jsx  |  6 ++---
+ src/components/EmployeeLayout.jsx       |  6 ++---
+ src/pages/admin/AdminLoginPage.jsx      | 28 ++++++++++++------------
+ src/pages/public/AboutPage.jsx          | 11 +++++-----
+ src/pages/public/CandidateLoginPage.jsx |  4 ++--
+ src/pages/public/EmployeeLoginPage.jsx  |  2 +-
+ src/pages/public/HomePage.jsx           | 29 ++++++++++++-------------
+ src/styles/futuristic.css               |  4 ++--
+ 11 files changed, 49 insertions(+), 51 deletions(-)
+
+diff --git a/server/routes/auth.js b/server/routes/auth.js
+index a48ddb7..8b44291 100644
+--- a/server/routes/auth.js
++++ b/server/routes/auth.js
+@@ -200,7 +200,7 @@ router.post('/bootstrap-admin', async (req, res) => {
+     action: 'ADMIN_BOOTSTRAP_INITIALIZED',
+     entityType: 'user',
+     entityId: created.id,
+-    summary: `Initialized primary administrator account ${created.employee_code} (${created.email}).`,
++    summary: `Created initial administrator account ${created.employee_code} (${created.email}).`,
+     after: { employeeCode: created.employee_code, email: created.email, role: 'admin' },
+   });
+ 
+diff --git a/src/App.jsx b/src/App.jsx
+index 3a341fd..492d9f3 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -57,7 +57,7 @@ class AppErrorBoundary extends React.Component {
+       return (
+         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+           <div className="neu-card" style={{ maxWidth: 540 }}>
+-            <h1 style={{ fontSize: '1.35rem', marginBottom: 8 }}>Interface Recovery Notice</h1>
++            <h1 style={{ fontSize: '1.35rem', marginBottom: 8 }}>Something went wrong</h1>
+             <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>
+               {this.state.errorMessage}
+             </p>
+@@ -69,7 +69,7 @@ class AppErrorBoundary extends React.Component {
+                 window.location.reload();
+               }}
+             >
+-              Reload Application
++              Reload page
+             </button>
+           </div>
+         </div>
+diff --git a/src/components/AdminLayout.jsx b/src/components/AdminLayout.jsx
+index 1893ed6..f7cad2a 100644
+--- a/src/components/AdminLayout.jsx
++++ b/src/components/AdminLayout.jsx
+@@ -225,10 +225,10 @@ export default function AdminLayout() {
+               type="button"
+               className="theme-toggle-pill"
+               onClick={togglePortalTheme}
+-              title={isCosmic ? 'Switch to Calm Cream Daylight mode' : 'Switch to Obsidian Dark mode'}
++              title={isCosmic ? 'Switch to light mode' : 'Switch to dark mode'}
+             >
+               {isCosmic ? <Sun size={14} /> : <Moon size={14} />}
+-              <span>{isCosmic ? 'Calm Cream' : 'Obsidian Dark'}</span>
++              <span>{isCosmic ? 'Light' : 'Dark'}</span>
+             </button>
+             <span className="badge badge-info">Admin Workspace</span>
+           </div>
+diff --git a/src/components/CandidateExamLayout.jsx b/src/components/CandidateExamLayout.jsx
+index f7b3a6d..6ce588b 100644
+--- a/src/components/CandidateExamLayout.jsx
++++ b/src/components/CandidateExamLayout.jsx
+@@ -240,17 +240,17 @@ export default function CandidateExamLayout() {
+               type="button"
+               className="theme-switch-pill"
+               onClick={togglePortalTheme}
+-              title={isCosmic ? 'Switch to Calm Cream Daylight Mode' : 'Switch to Obsidian Dark Mode'}
++              title={isCosmic ? 'Switch to light mode' : 'Switch to dark mode'}
+             >
+               {isCosmic ? (
+                 <>
+                   <Sun size={14} />
+-                  <span>Calm Cream</span>
++                  <span>Light</span>
+                 </>
+               ) : (
+                 <>
+                   <Moon size={14} />
+-                  <span>Obsidian Dark</span>
++                  <span>Dark</span>
+                 </>
+               )}
+             </button>
+diff --git a/src/components/EmployeeLayout.jsx b/src/components/EmployeeLayout.jsx
+index 1ae1a5e..3ffbf5c 100644
+--- a/src/components/EmployeeLayout.jsx
++++ b/src/components/EmployeeLayout.jsx
+@@ -274,17 +274,17 @@ export default function EmployeeLayout() {
+               type="button"
+               className="theme-switch-pill"
+               onClick={togglePortalTheme}
+-              title={isCosmic ? 'Switch to Calm Cream Daylight Mode' : 'Switch to Obsidian Dark Mode'}
++              title={isCosmic ? 'Switch to light mode' : 'Switch to dark mode'}
+             >
+               {isCosmic ? (
+                 <>
+                   <Sun size={14} />
+-                  <span>Calm Cream</span>
++                  <span>Light</span>
+                 </>
+               ) : (
+                 <>
+                   <Moon size={14} />
+-                  <span>Obsidian Dark</span>
++                  <span>Dark</span>
+                 </>
+               )}
+             </button>
+diff --git a/src/pages/admin/AdminLoginPage.jsx b/src/pages/admin/AdminLoginPage.jsx
+index 02dc025..306ee78 100644
+--- a/src/pages/admin/AdminLoginPage.jsx
++++ b/src/pages/admin/AdminLoginPage.jsx
+@@ -122,30 +122,30 @@ export default function AdminLoginPage() {
+ 
+           <div className="login-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
+             <h2 className="login-hero-title">
+-              {needsInitialAdmin ? 'Activate Admin' : 'Admin Console'}
++              {needsInitialAdmin ? 'Set up admin' : 'Admin console'}
+             </h2>
+             <p className="login-hero-desc">
+               {needsInitialAdmin
+-                ? 'Follow these 3 quick steps to initialize your primary administrator.'
+-                : 'Restricted workforce, rubric, assessment & career management.'}
++                ? 'Create the first administrator account.'
++                : 'Manage employees, guidelines, assessments, and applications.'}
+             </p>
+           </div>
+ 
+           <div className="login-steps-stack">
+             <LoginStepItem
+               number="1"
+-              text={needsInitialAdmin ? 'Verify server bootstrap token' : 'Authenticate admin identity'}
++              text={needsInitialAdmin ? 'Enter setup token' : 'Sign in'}
+               active
+               delay="0.42s"
+             />
+             <LoginStepItem
+               number="2"
+-              text={needsInitialAdmin ? 'Create primary admin profile' : 'Manage evaluators & guidelines'}
++              text={needsInitialAdmin ? 'Create admin account' : 'Manage employees and guidelines'}
+               delay="0.54s"
+             />
+             <LoginStepItem
+               number="3"
+-              text={needsInitialAdmin ? 'Launch management console' : 'Review assessments & careers'}
++              text={needsInitialAdmin ? 'Open admin console' : 'Review assessments and applications'}
+               delay="0.66s"
+             />
+           </div>
+@@ -171,9 +171,9 @@ export default function AdminLoginPage() {
+           ) : needsInitialAdmin ? (
+             <>
+               <div style={{ marginBottom: 22 }}>
+-                <h1 className="login-form-heading">Initialize Administrator</h1>
++                <h1 className="login-form-heading">Create admin account</h1>
+                 <p className="login-form-sub">
+-                  One-time setup. Once created, this initialization screen locks permanently.
++                  This setup is only available until the first admin account is created.
+                 </p>
+               </div>
+ 
+@@ -186,7 +186,7 @@ export default function AdminLoginPage() {
+ 
+               <form onSubmit={handleBootstrap} className="login-fields" style={{ gap: 14 }}>
+                 <div className="login-input-group">
+-                  <label htmlFor="boot-token">One-Time Server Setup Token *</label>
++                  <label htmlFor="boot-token">Setup token *</label>
+                   <input
+                     id="boot-token"
+                     type="password"
+@@ -282,16 +282,16 @@ export default function AdminLoginPage() {
+                   className="login-submit-btn"
+                   disabled={submitting}
+                 >
+-                  {submitting ? 'Initializing...' : 'Create Primary Administrator & Sign In'}
++                  {submitting ? 'Creating...' : 'Create admin account'}
+                 </button>
+               </form>
+             </>
+           ) : (
+             <>
+               <div style={{ marginBottom: 26 }}>
+-                <h1 className="login-form-heading">Administrator Sign In</h1>
++                <h1 className="login-form-heading">Admin sign in</h1>
+                 <p className="login-form-sub">
+-                  Authorized management access only. Employee accounts sign in at the Evaluator Portal.
++                  Admin access only. Employees should use the employee portal.
+                 </p>
+               </div>
+ 
+@@ -351,7 +351,7 @@ export default function AdminLoginPage() {
+                     </button>
+                   </div>
+                   <span className="login-helper-text">
+-                    Requires authorized administrator privileges.
++                    Admin access required.
+                   </span>
+                 </div>
+ 
+@@ -360,7 +360,7 @@ export default function AdminLoginPage() {
+                   className="login-submit-btn"
+                   disabled={submitting}
+                 >
+-                  {submitting ? 'Verifying Credentials...' : 'Sign In to Admin Console'}
++                  {submitting ? 'Signing in...' : 'Sign in'}
+                 </button>
+               </form>
+             </>
+diff --git a/src/pages/public/AboutPage.jsx b/src/pages/public/AboutPage.jsx
+index 1dc6f00..53d176a 100644
+--- a/src/pages/public/AboutPage.jsx
++++ b/src/pages/public/AboutPage.jsx
+@@ -31,7 +31,7 @@ export default function AboutPage() {
+           <div style={{ maxWidth: 740 }}>
+             <div className="public-eyebrow-pill" style={{ marginBottom: 18 }}>
+               <Sparkles size={13} />
+-              <span>Vision &amp; Methodology</span>
++              <span>About us</span>
+             </div>
+ 
+             <h1
+@@ -44,7 +44,7 @@ export default function AboutPage() {
+                 color: '#ffffff',
+               }}
+             >
+-              Human Precision for{' '}
++              Human review for{' '}
+               <em
+                 style={{
+                   fontFamily: "'Instrument Serif', 'Times New Roman', serif",
+@@ -54,7 +54,7 @@ export default function AboutPage() {
+                   fontSize: '1.08em',
+                 }}
+               >
+-                Modern AI
++                AI quality
+               </em>{' '}
+               Quality.
+             </h1>
+@@ -65,9 +65,8 @@ export default function AboutPage() {
+               assessment, media discovery, speech transcription, and geospatial validation.
+             </p>
+             <p style={{ fontSize: '0.94rem', color: '#9a9a9a', lineHeight: 1.65, margin: 0 }}>
+-              Every evaluator prepares inside our dedicated workspace with version-controlled
+-              guidelines, scenario-based readiness assessments, and structured calibration across
+-              both desktop and mobile surfaces.
++              Evaluators use the workspace to review guidelines, complete readiness assessments,
++              and keep work consistent across desktop and mobile.
+             </p>
+           </div>
+         </div>
+diff --git a/src/pages/public/CandidateLoginPage.jsx b/src/pages/public/CandidateLoginPage.jsx
+index 3fd107d..c627f88 100644
+--- a/src/pages/public/CandidateLoginPage.jsx
++++ b/src/pages/public/CandidateLoginPage.jsx
+@@ -84,7 +84,7 @@ export default function CandidateLoginPage() {
+           <div className="login-stagger-item" style={{ '--ad': '0.30s', textAlign: 'center' }}>
+             <h2 className="login-hero-title">Candidate Exam Portal</h2>
+             <p className="login-hero-desc">
+-              Complete your Admin-assigned aptitude &amp; AI evaluation screening exam.
++              Complete the screening exam assigned to your candidate account.
+             </p>
+           </div>
+ 
+@@ -124,7 +124,7 @@ export default function CandidateLoginPage() {
+           <div style={{ marginBottom: 28 }}>
+             <h1 className="login-form-heading">Candidate Exam Sign In</h1>
+             <p className="login-form-sub">
+-              Enter the exam credentials (<code>CND-xxxx</code>) issued by AI Square Administration to start your assigned exam or check released results.
++              Sign in with your candidate code (<code>CND-xxxx</code>), email, or username to start an assigned exam or view released results.
+             </p>
+           </div>
+ 
+diff --git a/src/pages/public/EmployeeLoginPage.jsx b/src/pages/public/EmployeeLoginPage.jsx
+index 5ec5b63..50e4e61 100644
+--- a/src/pages/public/EmployeeLoginPage.jsx
++++ b/src/pages/public/EmployeeLoginPage.jsx
+@@ -124,7 +124,7 @@ export default function EmployeeLoginPage() {
+           <div style={{ marginBottom: 28 }}>
+             <h1 className="login-form-heading">Employee Sign In</h1>
+             <p className="login-form-sub">
+-              Sign in with your AI Square evaluator credentials (<code>EMP-xxxx</code>) to access guidelines, project readiness, assessments, and announcements.
++              Sign in with your employee code (<code>EMP-xxxx</code>), email, or username.
+             </p>
+           </div>
+ 
+diff --git a/src/pages/public/HomePage.jsx b/src/pages/public/HomePage.jsx
+index 201ad3f..d3dd0be 100644
+--- a/src/pages/public/HomePage.jsx
++++ b/src/pages/public/HomePage.jsx
+@@ -11,18 +11,18 @@ const VESPER_HERO_VIDEO_URL =
+ const VISION_STEPS = [
+   {
+     step: '01',
+-    title: 'Guideline Calibration',
+-    body: 'Study structured, version-controlled rubrics inside the AI Square workspace before live grading.',
++    title: 'Learn the guidelines',
++    body: 'Review project guidelines in the workspace before you start grading.',
+   },
+   {
+     step: '02',
+-    title: 'Readiness Verification',
+-    body: 'Complete practical scenario assessments that measure analytical judgment and attention to detail.',
++    title: 'Check readiness',
++    body: 'Complete scenario-based assessments to confirm you are ready for live work.',
+   },
+   {
+     step: '03',
+-    title: 'Precision Evaluation',
+-    body: 'Shape safer, more accurate AI experiences through consistent human reasoning.',
++    title: 'Evaluate consistently',
++    body: 'Apply the guidelines consistently to help improve AI quality.',
+   },
+ ];
+ 
+@@ -135,8 +135,8 @@ export default function HomePage() {
+                 className="public-lede public-appear public-appear--soft"
+                 style={{ '--d': '0.82s', animationDuration: '1.25s' }}
+               >
+-                Join AI Square&rsquo;s evaluator community — grading generative media, search
+-                relevance, voice synthesis, and spatial data with structured clarity.
++                Join AI Square&rsquo;s evaluator community to review generative media, search results,
++                audio, and map data using clear guidelines.
+               </p>
+ 
+               <div className="public-hero-actions">
+@@ -174,7 +174,7 @@ export default function HomePage() {
+               style={{ '--d': '1.28s' }}
+             >
+               <SlidersHorizontal size={17} color="#ffffff" strokeWidth={1.65} />
+-              <span>Structured Rubrics</span>
++              <span>Clear guidelines</span>
+             </div>
+ 
+             <div
+@@ -182,7 +182,7 @@ export default function HomePage() {
+               style={{ '--d': '1.44s' }}
+             >
+               <ShieldCheck size={17} color="#ffffff" strokeWidth={1.65} />
+-              <span>Dedicated Readiness Portal</span>
++              <span>Readiness tracking</span>
+             </div>
+           </div>
+         </div>
+@@ -222,7 +222,7 @@ export default function HomePage() {
+                 Domains
+               </span>
+               <h2 className="public-section-h2" style={{ marginBottom: 8 }}>
+-                Focused roles across <em>modern AI</em>
++                Evaluation roles
+               </h2>
+               <p style={{ margin: 0, color: '#8e8e98', fontSize: '0.94rem', lineHeight: 1.6 }}>
+                 Select any role to apply directly with your resume.
+@@ -290,10 +290,9 @@ export default function HomePage() {
+               </div>
+ 
+               <div>
+-                <h3 className="public-minimal-domain-title">And More Emerging Tracks</h3>
++                <h3 className="public-minimal-domain-title">More roles</h3>
+                 <p className="public-minimal-domain-desc">
+-                  Submit a general evaluator application to be matched with upcoming multimodal and
+-                  language cohorts.
++                  Submit a general application and we will match you with upcoming roles.
+                 </p>
+               </div>
+             </Link>
+@@ -325,7 +324,7 @@ export default function HomePage() {
+                   margin: '8px 0 0',
+                 }}
+               >
+-                Clarity, Rubric Mastery &amp; Evaluator Growth
++                How it works
+               </h2>
+             </div>
+ 
+diff --git a/src/styles/futuristic.css b/src/styles/futuristic.css
+index a9da2f2..11c0f25 100644
+--- a/src/styles/futuristic.css
++++ b/src/styles/futuristic.css
+@@ -133,7 +133,7 @@
+   }
+ }
+ 
+-/* Public Cards & Inputs inside Public Pages (Translucent Obsidian over Starfield) */
++/* Public page cards and inputs */
+ .futuristic-public-shell .neu-card,
+ .futuristic-public-shell .neu-card-compact {
+   background: rgba(9, 9, 13, 0.58);
+@@ -891,7 +891,7 @@
+   gap: 7px;
+ }
+ 
+-/* Ultra-Minimal Domains Grid Over Starfield */
++/* Evaluation domains grid */
+ .public-minimal-domains {
+   display: grid;
+   grid-template-columns: repeat(4, minmax(0, 1fr));
+-- 
+2.47.3
+
+
+From 855461ff56ee50cc76195f9a632b437d3abd396e Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:50:36 +0000
+Subject: [PATCH 4/9] docs: rewrite README and add standard ignore files
+
+---
+ .dockerignore |   9 ++++
+ .gitignore    |   8 ++++
+ Dockerfile    |   2 +-
+ README.md     | 117 ++++++++++++++++++++++++++++++++++++++++++++------
+ index.html    |   4 +-
+ package.json  |   6 ++-
+ railway.json  |   2 +-
+ render.yaml   |   2 +-
+ 8 files changed, 129 insertions(+), 21 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 .gitignore
+
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..6276ec6
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,9 @@
++node_modules
++client_bundle
++data
++storage
++.git
++.env
++.env.*
++*.log
++.DS_Store
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..1a4866d
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,8 @@
++node_modules/
++client_bundle/
++data/
++storage/
++.env
++.env.*
++*.log
++.DS_Store
+diff --git a/Dockerfile b/Dockerfile
+index 9e471c5..93812b2 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+ WORKDIR /app
+ 
+ COPY package*.json ./
+-RUN npm install
++RUN npm ci
+ 
+ COPY . .
+ RUN npm run build
+diff --git a/README.md b/README.md
+index ed2f531..38e2a5d 100644
+--- a/README.md
++++ b/README.md
+@@ -1,14 +1,103 @@
+-# AI Square IT Solutions (v2) — Human-in-the-Loop AI Evaluation Platform
+-
+-Standalone full-stack web platform combining:
+-1. **Minimal Starfield Public Website (`/`, `/about`, `/careers`, `/contact`)** — Pure `#000000` canvas with crisp deep-space stars, floating glass-metal command navbar, and ultra-minimal evaluation domains (*Generative Image & Video Grader, Search Engine Evaluator, Online Ads Assessor, Media Search Analyst, Audio Transcriber & Grader, POI Validator, Local Search Map Evaluator*).
+-2. **Aurora Split-Screen Sign-In Gateways (`/login` & `/admin/login`)** — Two-column unfiltered motion gateway + `#1A1A1A` form architecture.
+-3. **Employee (`/portal`) & Admin (`/admin`) Workspaces** — Dual-theme workspace with **Obsidian Dark** and **Calm Cream Daylight** modes, Guidelines PDF library, Question Bank, Timed Assessments, Project Readiness, Bulk Onboarding, and Interactive Company Map/Contact settings.
+-
+-## Deploy as a Brand-New GitHub + Render Project
+-1. Create a new repository on GitHub (e.g. `aisquare-v2`).
+-2. Upload the contents of this project folder (so `Dockerfile`, `package.json`, `index.html`, `src`, `server` sit at the root of the repository) and click **Commit changes**.
+-3. On **Render.com** -> **New +** -> **Web Service** -> select your new `aisquare-v2` repository:
+-   - **Language**: `Docker` (auto-detected)
+-   - **Environment Variable**: `ADMIN_BOOTSTRAP_TOKEN` = `<your chosen one-time setup token>`
+-4. Deploy and visit `https://<your-new-service>.onrender.com/admin/login` to initialize your primary administrator!
++# AI Square IT Solutions
++
++Full-stack platform for AI Square IT Solutions: a public website, an employee portal, and an admin console for managing evaluators, guidelines, assessments, and hiring.
++
++## Features
++
++- Public website with careers, contact, privacy, and terms pages
++- Employee portal for guidelines, assessments, results, readiness, announcements, and feedback
++- Candidate exam portal for assigned screening assessments
++- Admin console for employees, admins, guidelines, question banks, assessments, results, readiness, applications, announcements, and activity logs
++- SQLite persistence with file storage for resumes and guideline PDFs
++- Cookie/session authentication with role-based access control
++
++## Stack
++
++- Node.js 20+
++- Express 4
++- React 18 + Vite 6
++- SQLite via `better-sqlite3`
++
++## Local development
++
++```bash
++npm ci
++npm run dev
++```
++
++The server starts on `http://localhost:3000` by default. In development, Vite runs in middleware mode through the Express server.
++
++## Production build
++
++```bash
++npm ci
++npm run build
++npm start
++```
++
++The client is built into `client_bundle/`, and the Express server serves it in production.
++
++## Environment variables
++
++| Variable | Purpose | Default |
++| --- | --- | --- |
++| `PORT` | HTTP port | `3000` |
++| `HOST` | Bind address | `0.0.0.0` |
++| `NODE_ENV` | `development` or `production` | unset |
++| `ADMIN_BOOTSTRAP_TOKEN` | Optional one-time token for creating the first admin | generated into `data/.bootstrap_token` if absent |
++| `AISQUARE_DATA_DIR` | SQLite database directory | `./data` |
++| `AISQUARE_STORAGE_DIR` | Uploaded file storage directory | `./storage` |
++
++On first run, if no admin exists, open `/admin/login` and use the bootstrap token to create the initial administrator. If `ADMIN_BOOTSTRAP_TOKEN` is not set, the server writes a generated token to `data/.bootstrap_token`.
++
++For production, persist `AISQUARE_DATA_DIR` and `AISQUARE_STORAGE_DIR` outside the ephemeral application filesystem.
++
++## Deployment
++
++### Docker
++
++```bash
++docker build -t aisquare-v2 .
++docker run -p 3000:3000 \
++  -e ADMIN_BOOTSTRAP_TOKEN=your-setup-token \
++  -v aisquare-data:/app/data \
++  -v aisquare-storage:/app/storage \
++  aisquare-v2
++```
++
++### Render
++
++The repository includes `render.yaml` for a Node web service. You can also deploy using the `Dockerfile`. Set `ADMIN_BOOTSTRAP_TOKEN` and attach persistent storage for `/app/data` and `/app/storage` if using Docker.
++
++### Railway
++
++The repository includes `railway.json`. Set `ADMIN_BOOTSTRAP_TOKEN` and configure persistent storage for the data and upload directories.
++
++## Verification
++
++```bash
++npm run build
++npm run verify
++```
++
++Additional checks:
++
++```bash
++node scripts/verify-full-platform.js
++node scripts/verify-exam-portal-e2e.js
++```
++
++`server/scripts/verify-core.js` expects a running local server on port 3000 and uses the configured local data directory.
++
++## Project structure
++
++```text
++src/               React client
++server/            Express API, database, auth, and utilities
++server/db/         SQLite schema and database setup
++server/routes/     Public, auth, employee, and admin API routes
++scripts/           Build/runtime verification scripts
++client_bundle/     Production client build output
++data/              SQLite database (generated)
++storage/           Uploaded resumes and guidelines (generated)
++```
+diff --git a/index.html b/index.html
+index ef958a2..1a90835 100644
+--- a/index.html
++++ b/index.html
+@@ -5,7 +5,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <meta
+       name="description"
+-      content="AI Square IT Solutions — Human Intelligence & Structured Evaluation for Generative Media, Search, Ads, Voice AI, and Spatial Data."
++      content="AI Square IT Solutions: public website, employee portal, and admin console for AI evaluation work."
+     />
+     <meta name="theme-color" content="#000000" />
+     <link rel="preconnect" href="https://fonts.googleapis.com" />
+@@ -19,7 +19,7 @@
+       type="image/svg+xml"
+       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000000'/%3E%3Cg transform='translate(4 4) rotate(-30 12 12)' fill='%23ffffff'%3E%3Ccircle cx='7.3' cy='3.2' r='1.45'/%3E%3Crect x='5.5' y='4.7' width='3.6' height='14.6' rx='1.8'/%3E%3Crect x='14.9' y='4.7' width='3.6' height='14.6' rx='1.8'/%3E%3Ccircle cx='16.7' cy='20.8' r='1.45'/%3E%3C/g%3E%3C/svg%3E"
+     />
+-    <title>AI Square IT Solutions — Human Intelligence for Modern AI</title>
++    <title>AI Square IT Solutions</title>
+   </head>
+   <body style="margin:0;background:#000000;color:#ffffff">
+     <div id="root">
+diff --git a/package.json b/package.json
+index d1765e1..8b880ea 100644
+--- a/package.json
++++ b/package.json
+@@ -3,7 +3,7 @@
+   "version": "2.4.0",
+   "private": true,
+   "type": "module",
+-  "description": "AI Square IT Solutions \u2014 Corporate Website, Employee Portal, and Admin Workforce Management Platform",
++  "description": "Public website, employee portal, and admin console for AI Square IT Solutions.",
+   "engines": {
+     "node": ">=20.0.0"
+   },
+@@ -12,7 +12,9 @@
+     "build": "vite build",
+     "start": "NODE_ENV=production node server/index.js",
+     "provision": "node server/scripts/provision.js",
+-    "verify": "node scripts/verify-prepublish-audit.js"
++    "verify": "node scripts/verify-prepublish-audit.js",
++    "verify:full": "node scripts/verify-full-platform.js",
++    "verify:exam": "node scripts/verify-exam-portal-e2e.js"
+   },
+   "dependencies": {
+     "@fontsource/geist-sans": "^5.3.0",
+diff --git a/railway.json b/railway.json
+index b212a09..5fb307e 100644
+--- a/railway.json
++++ b/railway.json
+@@ -2,7 +2,7 @@
+   "$schema": "https://railway.app/railway.schema.json",
+   "build": {
+     "builder": "NIXPACKS",
+-    "buildCommand": "npm install && npm run build"
++    "buildCommand": "npm ci && npm run build"
+   },
+   "deploy": {
+     "startCommand": "npm start",
+diff --git a/render.yaml b/render.yaml
+index 3fedf8d..282cae7 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -3,7 +3,7 @@ services:
+     name: ai-square-it-solutions
+     runtime: node
+     plan: free
+-    buildCommand: npm install && npm run build
++    buildCommand: npm ci && npm run build
+     startCommand: npm start
+     healthCheckPath: /api/health
+     envVars:
+-- 
+2.47.3
+
+
+From ee023d1be4a72f0a00c6de87b8c4f57e58d07dfc Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:51:21 +0000
+Subject: [PATCH 5/9] test: make verification scripts portable and
+ self-contained
+
+---
+ package.json                                  |  2 +-
+ scripts/verify-exam-portal-e2e.js             |  5 ++-
+ scripts/verify-full-platform.js               | 17 ++++-----
+ ...epublish-audit.js => verify-production.js} | 35 ++++++++++---------
+ .../{verify-phase1-3.js => verify-core.js}    |  6 ++--
+ 5 files changed, 36 insertions(+), 29 deletions(-)
+ rename scripts/{verify-prepublish-audit.js => verify-production.js} (94%)
+ rename server/scripts/{verify-phase1-3.js => verify-core.js} (98%)
+
+diff --git a/package.json b/package.json
+index 8b880ea..3fd6486 100644
+--- a/package.json
++++ b/package.json
+@@ -12,7 +12,7 @@
+     "build": "vite build",
+     "start": "NODE_ENV=production node server/index.js",
+     "provision": "node server/scripts/provision.js",
+-    "verify": "node scripts/verify-prepublish-audit.js",
++    "verify": "node scripts/verify-production.js",
+     "verify:full": "node scripts/verify-full-platform.js",
+     "verify:exam": "node scripts/verify-exam-portal-e2e.js"
+   },
+diff --git a/scripts/verify-exam-portal-e2e.js b/scripts/verify-exam-portal-e2e.js
+index c3b25b8..a0ffb81 100644
+--- a/scripts/verify-exam-portal-e2e.js
++++ b/scripts/verify-exam-portal-e2e.js
+@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
+ import path from 'node:path';
++import { fileURLToPath } from 'node:url';
+ import { spawn } from 'node:child_process';
+ 
++const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++
+ const TEST_PORT = 4512;
+ const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
+ 
+@@ -41,7 +44,7 @@ async function main() {
+   fs.mkdirSync(dataDir, { recursive: true });
+ 
+   const proc = spawn('node', ['server/index.js'], {
+-    cwd: '/home/user',
++    cwd: ROOT_DIR,
+     env: {
+       ...process.env,
+       PORT: String(TEST_PORT),
+diff --git a/scripts/verify-full-platform.js b/scripts/verify-full-platform.js
+index a0bfa72..a1f37c8 100644
+--- a/scripts/verify-full-platform.js
++++ b/scripts/verify-full-platform.js
+@@ -1,13 +1,14 @@
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
++import os from 'node:os';
+ import path from 'node:path';
+ 
+-const TEST_DATA_DIR = '/tmp/aisquare-e2e-data';
+-const TEST_STORAGE_DIR = '/tmp/aisquare-e2e-storage';
++const TEST_DATA_DIR = path.join(os.tmpdir(), 'aisquare-e2e-data');
++const TEST_STORAGE_DIR = path.join(os.tmpdir(), 'aisquare-e2e-storage');
+ const PORT = 4199;
+ const BASE = `http://127.0.0.1:${PORT}`;
+ 
+-// Clean isolated temp dirs (never touches /home/user/data/aisquare.db)
++// Use isolated temp directories for test data.
+ fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+ fs.rmSync(TEST_STORAGE_DIR, { recursive: true, force: true });
+ 
+@@ -75,7 +76,7 @@ const admin = new CookieClient();
+ const emp = new CookieClient();
+ 
+ try {
+-  console.log('=== PHASE 1–3: Bootstrap, Auth, RBAC, Public Careers & Enquiries ===');
++  console.log('=== Bootstrap, auth, RBAC, careers, and contact ===');
+   const setupStatus = await anon.req('/api/auth/setup-status');
+   assert.equal(setupStatus.data.needsInitialAdmin, true);
+ 
+@@ -197,7 +198,7 @@ try {
+   const rbacCheck = await emp.req('/api/admin/overview');
+   assert.equal(rbacCheck.status, 403);
+ 
+-  console.log('=== PHASE 4: Central Guideline Library, Versioning, PDF & Study Logs ===');
++  console.log('=== Guidelines, versioning, PDFs, and study logs ===');
+   const g1Fd = new FormData();
+   g1Fd.append('title', 'Search Relevance Core Rubric');
+   g1Fd.append('clientProjectTask', 'PRJ-AUTO Search Ranking');
+@@ -248,7 +249,7 @@ try {
+   const pdfStream = await emp.req(`/api/portal/guidelines/${g2Create.data.id}/pdf`);
+   assert.equal(pdfStream.status, 200);
+ 
+-  console.log('=== PHASE 5 & 6: Question Bank, Bulk Import, Assessments, Lock, Scoring, Release & Readiness ===');
++  console.log('=== Question bank, assessments, scoring, release, and readiness ===');
+   // Reject malformed CSV import cleanly
+   const badCsv = await admin.req('/api/admin/question-bank/bulk-import', {
+     method: 'POST',
+@@ -482,7 +483,7 @@ try {
+   const twoAttempts = await emp.req('/api/portal/results');
+   assert.equal(twoAttempts.data.results.length, 2);
+ 
+-  console.log('=== PHASE 7: Announcements, Notifications, Identified Feedback & Overview ===');
++  console.log('=== Announcements, notifications, feedback, and overview ===');
+   const annCreate = await admin.req('/api/admin/announcements', {
+     method: 'POST',
+     body: {
+@@ -572,7 +573,7 @@ try {
+   assert.equal(bulkEmpLogin.status, 200);
+   assert.equal(bulkEmpLogin.data.user.mustChangePassword, true);
+ 
+-  console.log('\n✅ ALL PHASES 1–8 END-TO-END VERIFICATION CHECKS PASSED 100%!');
++  console.log('\nFull platform verification passed.');
+ } finally {
+   server.close();
+   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+diff --git a/scripts/verify-prepublish-audit.js b/scripts/verify-production.js
+similarity index 94%
+rename from scripts/verify-prepublish-audit.js
+rename to scripts/verify-production.js
+index 53aac3c..4819018 100644
+--- a/scripts/verify-prepublish-audit.js
++++ b/scripts/verify-production.js
+@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
+ import path from 'node:path';
++import { fileURLToPath } from 'node:url';
+ import { spawn } from 'node:child_process';
+ import Database from 'better-sqlite3';
+ 
++const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++
+ const TEST_PORT = 4499;
+ const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
+ 
+@@ -13,8 +16,7 @@ function sleep(ms) {
+ }
+ 
+ /**
+- * Simulates a strict cross-origin iframe client (c=0, NO cookies stored or sent!),
+- * relying strictly on X-AISquare-Session + ?_sid= / ?sid= just like strict browsers.
++ * Client that authenticates with the session header/query fallback instead of cookies.
+  */
+ class CookieBlockedClient {
+   constructor() {
+@@ -65,9 +67,9 @@ async function main() {
+   const dataDir = path.join(tmpDir, 'data');
+   fs.mkdirSync(dataDir, { recursive: true });
+ 
+-  console.log('1. Starting isolated production-bundle server for Pre-Publish Audit...');
++  console.log('1. Starting isolated production-bundle server...');
+   const proc = spawn('node', ['server/index.js'], {
+-    cwd: '/home/user',
++    cwd: ROOT_DIR,
+     env: {
+       ...process.env,
+       PORT: String(TEST_PORT),
+@@ -95,7 +97,7 @@ async function main() {
+ 
+   try {
+     // 2. Verify all SPA routes & gzipped static bundle assets
+-    console.log('2. Auditing all 24 Public, Auth, Employee & Admin SPA HTML routes + Gzipped Assets...');
++    console.log('2. Checking SPA routes and gzipped assets...');
+     const spaRoutes = [
+       '/',
+       '/about',
+@@ -155,7 +157,7 @@ async function main() {
+     }
+ 
+     // 3. Bootstrap Admin & Audit All 12 Admin Pages in Cookie-Blocked Iframe Mode
+-    console.log('3. Auditing all 12 Admin Portal pages & endpoints in strict Cookie-Blocked Mode...');
++    console.log('3. Checking admin and employee workflows without cookies...');
+     const bootstrapToken = fs.readFileSync(path.join(dataDir, '.bootstrap_token'), 'utf8').trim();
+     const admin = new CookieBlockedClient();
+ 
+@@ -516,20 +518,21 @@ async function main() {
+     const p95Ms = allLatencies[Math.floor(allLatencies.length * 0.95)].toFixed(2);
+     console.log(`5. API Performance across ${allLatencies.length} calls: avg=${avgMs}ms, p95=${p95Ms}ms`);
+ 
+-    // 6. Read-only Production Database Integrity & Cleanliness Check
+-    const prodDb = new Database('/home/user/data/aisquare.db', { readonly: true });
+-    const integrity = prodDb.pragma('integrity_check', { simple: true });
+-    assert.equal(integrity, 'ok', 'Production SQLite integrity_check failed');
+-    const primaryAdmin = prodDb
++    // 6. Read-only integrity check for the isolated test database
++    const testDbPath = path.join(dataDir, 'aisquare.db');
++    const testDb = new Database(testDbPath, { readonly: true });
++    const integrity = testDb.pragma('integrity_check', { simple: true });
++    assert.equal(integrity, 'ok', 'SQLite integrity_check failed');
++    const primaryAdmin = testDb
+       .prepare("SELECT employee_code, full_name, email, role, status FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1")
+       .get();
+-    assert.ok(primaryAdmin && primaryAdmin.status === 'active', 'Primary admin missing or inactive in live DB');
+-    prodDb.close();
++    assert.ok(primaryAdmin && primaryAdmin.status === 'active', 'Initial admin missing or inactive in test DB');
++    testDb.close();
+     console.log(
+-      `6. Live SQLite DB verified healthy (integrity=ok, primaryAdmin=${primaryAdmin.employee_code} / ${primaryAdmin.full_name})`
++      `6. Test SQLite DB verified healthy (integrity=ok, admin=${primaryAdmin.employee_code})`
+     );
+ 
+-    console.log('\n✅ PRE-PUBLISH FULL ADMIN & EMPLOYEE AUDIT PASSED 100%!');
++    console.log('\nProduction verification passed.');
+   } finally {
+     proc.kill('SIGTERM');
+     fs.rmSync(tmpDir, { recursive: true, force: true });
+@@ -537,6 +540,6 @@ async function main() {
+ }
+ 
+ main().catch((err) => {
+-  console.error('PRE-PUBLISH AUDIT FAILED:', err);
++  console.error('Production verification failed:', err);
+   process.exit(1);
+ });
+diff --git a/server/scripts/verify-phase1-3.js b/server/scripts/verify-core.js
+similarity index 98%
+rename from server/scripts/verify-phase1-3.js
+rename to server/scripts/verify-core.js
+index 33b5ca2..8c7e571 100644
+--- a/server/scripts/verify-phase1-3.js
++++ b/server/scripts/verify-core.js
+@@ -32,7 +32,7 @@ function extractSessionCookie(setCookieHeader) {
+ }
+ 
+ async function runVerification() {
+-  console.log('=== AI Square IT Solutions — Phase 1–3 Verification Suite ===');
++  console.log('=== AI Square core verification ===');
+ 
+   // 1. Public SPA routes return 200 HTML
+   for (const route of ['/', '/about', '/careers', '/contact', '/privacy', '/terms', '/login', '/admin/login']) {
+@@ -69,7 +69,7 @@ async function runVerification() {
+       method: 'POST',
+       body: {
+         bootstrapToken: 'wrong-token',
+-        fullName: 'Primary Administrator',
++        fullName: 'Initial Administrator',
+         email: 'admin@aisquare.local',
+         username: 'admin',
+         password: adminPassword,
+@@ -257,7 +257,7 @@ async function runVerification() {
+   );
+   console.log('[PASS] Careers application & private resume protection verified (test record cleaned up)');
+ 
+-  console.log('=== ALL PHASE 1–3 VERIFICATION TESTS PASSED ===');
++  console.log('=== Core verification passed ===');
+ }
+ 
+ runVerification().catch((err) => {
+-- 
+2.47.3
+
+
+From 1f1e2cbf680ee9e2867ab3b02911e6864653c3de Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:51:40 +0000
+Subject: [PATCH 6/9] test: use neutral production verification temp prefix
+
+---
+ scripts/verify-production.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/verify-production.js b/scripts/verify-production.js
+index 4819018..d9ed51e 100644
+--- a/scripts/verify-production.js
++++ b/scripts/verify-production.js
+@@ -63,7 +63,7 @@ class CookieBlockedClient {
+ }
+ 
+ async function main() {
+-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aisquare-prepublish-'));
++  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aisquare-production-'));
+   const dataDir = path.join(tmpDir, 'data');
+   fs.mkdirSync(dataDir, { recursive: true });
+ 
+-- 
+2.47.3
+
+
+From 8a79aaaaf7c7724b5f90e63045c643484ef6f180 Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:52:31 +0000
+Subject: [PATCH 7/9] test: isolate upload storage during verification
+
+---
+ scripts/verify-exam-portal-e2e.js | 3 +++
+ scripts/verify-production.js      | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/scripts/verify-exam-portal-e2e.js b/scripts/verify-exam-portal-e2e.js
+index a0ffb81..f2521ed 100644
+--- a/scripts/verify-exam-portal-e2e.js
++++ b/scripts/verify-exam-portal-e2e.js
+@@ -41,7 +41,9 @@ class Client {
+ async function main() {
+   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aisquare-exam-e2e-'));
+   const dataDir = path.join(tmpDir, 'data');
++  const storageDir = path.join(tmpDir, 'storage');
+   fs.mkdirSync(dataDir, { recursive: true });
++  fs.mkdirSync(storageDir, { recursive: true });
+ 
+   const proc = spawn('node', ['server/index.js'], {
+     cwd: ROOT_DIR,
+@@ -51,6 +53,7 @@ async function main() {
+       HOST: '127.0.0.1',
+       NODE_ENV: 'production',
+       AISQUARE_DATA_DIR: dataDir,
++      AISQUARE_STORAGE_DIR: storageDir,
+     },
+     stdio: ['ignore', 'pipe', 'pipe'],
+   });
+diff --git a/scripts/verify-production.js b/scripts/verify-production.js
+index d9ed51e..8576dc4 100644
+--- a/scripts/verify-production.js
++++ b/scripts/verify-production.js
+@@ -65,7 +65,9 @@ class CookieBlockedClient {
+ async function main() {
+   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aisquare-production-'));
+   const dataDir = path.join(tmpDir, 'data');
++  const storageDir = path.join(tmpDir, 'storage');
+   fs.mkdirSync(dataDir, { recursive: true });
++  fs.mkdirSync(storageDir, { recursive: true });
+ 
+   console.log('1. Starting isolated production-bundle server...');
+   const proc = spawn('node', ['server/index.js'], {
+@@ -76,6 +78,7 @@ async function main() {
+       HOST: '127.0.0.1',
+       NODE_ENV: 'production',
+       AISQUARE_DATA_DIR: dataDir,
++      AISQUARE_STORAGE_DIR: storageDir,
+     },
+     stdio: ['ignore', 'pipe', 'pipe'],
+   });
+-- 
+2.47.3
+
+
+From e6d8a22ca6d30b8b9f9126f81e8a5b9e002c510b Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:53:24 +0000
+Subject: [PATCH 8/9] chore: sync lockfile and neutral verification output
+
+---
+ package-lock.json                 | 8 ++++----
+ scripts/verify-exam-portal-e2e.js | 2 +-
+ scripts/verify-production.js      | 6 +++---
+ 3 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/package-lock.json b/package-lock.json
+index 864ada5..d6499a9 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+-  "name": "ai-square-it-solutions",
+-  "version": "1.0.0",
++  "name": "ai-square-v2",
++  "version": "2.4.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+-      "name": "ai-square-it-solutions",
+-      "version": "1.0.0",
++      "name": "ai-square-v2",
++      "version": "2.4.0",
+       "dependencies": {
+         "@fontsource/geist-sans": "^5.3.0",
+         "@vitejs/plugin-react": "^4.3.4",
+diff --git a/scripts/verify-exam-portal-e2e.js b/scripts/verify-exam-portal-e2e.js
+index f2521ed..fdaf166 100644
+--- a/scripts/verify-exam-portal-e2e.js
++++ b/scripts/verify-exam-portal-e2e.js
+@@ -299,7 +299,7 @@ async function main() {
+     assert.equal((await promotedEmp.req('/api/portal/guidelines')).status, 200);
+     assert.equal((await promotedEmp.req('/api/portal/readiness')).status, 200);
+ 
+-    console.log('✅ ALL 3 PORTALS (CANDIDATE EXAM + EMPLOYEE WORKFORCE + ADMIN) E2E CHECKS PASSED!');
++    console.log('Candidate, employee, and admin E2E verification passed.');
+   } finally {
+     proc.kill('SIGTERM');
+     fs.rmSync(tmpDir, { recursive: true, force: true });
+diff --git a/scripts/verify-production.js b/scripts/verify-production.js
+index 8576dc4..327edfd 100644
+--- a/scripts/verify-production.js
++++ b/scripts/verify-production.js
+@@ -159,7 +159,7 @@ async function main() {
+       assert.equal(ar.headers.get('content-encoding'), 'gzip', `Asset ${asset} not gzipped`);
+     }
+ 
+-    // 3. Bootstrap Admin & Audit All 12 Admin Pages in Cookie-Blocked Iframe Mode
++    // 3. Bootstrap admin and check admin workflows without cookies
+     console.log('3. Checking admin and employee workflows without cookies...');
+     const bootstrapToken = fs.readFileSync(path.join(dataDir, '.bootstrap_token'), 'utf8').trim();
+     const admin = new CookieBlockedClient();
+@@ -372,8 +372,8 @@ async function main() {
+     assert.equal(pubInfoRes.data.officeAddress, 'Madhapur, Hyderabad, Telangana, India');
+     assert.equal(pubInfoRes.data.mapLink, 'https://maps.google.com/?q=17.4483,78.3915');
+ 
+-    // 4. Audit All 9 Employee Portal Pages in Cookie-Blocked Iframe Mode
+-    console.log('4. Auditing all 9 Employee Portal pages & exam runner in Cookie-Blocked Mode...');
++    // 4. Check employee portal and exam runner workflows without cookies
++    console.log('4. Checking employee portal and exam runner workflows without cookies...');
+     const emp = new CookieBlockedClient();
+     const empLogin = await emp.req('/api/auth/employee/login', {
+       method: 'POST',
+-- 
+2.47.3
+
+
+From b99b03af2e3fa2167efad06c5a324c40d1790fe9 Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Tue, 3 Nov 2026 20:58:36 +0000
+Subject: [PATCH 9/9] chore: simplify project naming
+
+---
+ README.md                       |  4 ++--
+ package-lock.json               |  4 ++--
+ package.json                    |  2 +-
+ scripts/verify-full-platform.js | 10 +++++-----
+ 4 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/README.md b/README.md
+index 38e2a5d..c9b8b64 100644
+--- a/README.md
++++ b/README.md
+@@ -57,12 +57,12 @@ For production, persist `AISQUARE_DATA_DIR` and `AISQUARE_STORAGE_DIR` outside t
+ ### Docker
+ 
+ ```bash
+-docker build -t aisquare-v2 .
++docker build -t aisquare .
+ docker run -p 3000:3000 \
+   -e ADMIN_BOOTSTRAP_TOKEN=your-setup-token \
+   -v aisquare-data:/app/data \
+   -v aisquare-storage:/app/storage \
+-  aisquare-v2
++  aisquare
+ ```
+ 
+ ### Render
+diff --git a/package-lock.json b/package-lock.json
+index d6499a9..cf030a9 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,11 +1,11 @@
+ {
+-  "name": "ai-square-v2",
++  "name": "aisquare",
+   "version": "2.4.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+-      "name": "ai-square-v2",
++      "name": "aisquare",
+       "version": "2.4.0",
+       "dependencies": {
+         "@fontsource/geist-sans": "^5.3.0",
+diff --git a/package.json b/package.json
+index 3fd6486..49c17ad 100644
+--- a/package.json
++++ b/package.json
+@@ -1,5 +1,5 @@
+ {
+-  "name": "ai-square-v2",
++  "name": "aisquare",
+   "version": "2.4.0",
+   "private": true,
+   "type": "module",
+diff --git a/scripts/verify-full-platform.js b/scripts/verify-full-platform.js
+index a1f37c8..216efac 100644
+--- a/scripts/verify-full-platform.js
++++ b/scripts/verify-full-platform.js
+@@ -210,7 +210,7 @@ try {
+   assert.equal(g1Create.status, 201);
+   const g1Id = g1Create.data.id;
+ 
+-  // Update guideline to v2 and verify v1 is preserved
++  // Update guideline and verify the prior version is preserved
+   const g1Upd = new FormData();
+   g1Upd.append('title', 'Search Relevance Core Rubric');
+   g1Upd.append('clientProjectTask', 'PRJ-AUTO Search Ranking');
+@@ -383,7 +383,7 @@ try {
+   // Edit Question Bank item BEFORE submission/review to verify attempt snapshot isolation
+   await admin.req(`/api/admin/question-bank/${qIds[0]}`, {
+     method: 'PUT',
+-    body: { prompt: 'EDITED BANK PROMPT V2 — must not alter active/completed attempt!' },
++    body: { prompt: 'EDITED BANK PROMPT — must not alter active/completed attempt!' },
+   });
+ 
+   const submitRes = await emp.req(`/api/portal/attempts/${attemptId}/submit`, {
+@@ -413,7 +413,7 @@ try {
+ 
+   // Admin inspects attempt, verifies snapshot prompt wasn't mutated by bank edit, and grades practical scenario
+   const adminAttDetail = await admin.req(`/api/admin/attempts/${attemptId}`);
+-  assert.ok(!adminAttDetail.data.questions[0].prompt.includes('EDITED BANK PROMPT V2'));
++  assert.ok(!adminAttDetail.data.questions[0].prompt.includes('EDITED BANK PROMPT'));
+ 
+   const scenarioAq = adminAttDetail.data.questions.find((q) => q.questionType === 'practical_scenario');
+   const reviewRes = await admin.req(`/api/admin/attempts/${attemptId}/review`, {
+@@ -489,7 +489,7 @@ try {
+     body: {
+       title: 'Q4 Search Calibration Update',
+       category: 'Guideline Notice',
+-      body: 'Please review Search Relevance Core Rubric v2 before Friday.',
++      body: 'Please review Search Relevance Core Rubric before Friday.',
+       status: 'published',
+     },
+   });
+@@ -504,7 +504,7 @@ try {
+     body: {
+       category: 'Guideline Problem',
+       subject: 'Example 4 formatting',
+-      message: 'Table 2 in v2 could use an extra example.',
++      message: 'Table 2 could use an extra example.',
+     },
+   });
+   assert.equal(fbSubmit.status, 201);
+-- 
+2.47.3
+
