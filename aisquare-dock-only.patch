@@ -1,0 +1,680 @@
+From 471057e8bcfe1233fce9cce03d1d821aecdef9b1 Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Wed, 4 Nov 2026 15:36:03 +0000
+Subject: [PATCH] feat: add animated public navigation dock
+
+---
+ package-lock.json               |  75 +++++++++++
+ package.json                    |   1 +
+ src/components/Dock.jsx         | 221 ++++++++++++++++++++++++++++++++
+ src/components/PublicDock.jsx   | 109 ++++++++++++++++
+ src/components/PublicLayout.jsx |   8 +-
+ src/styles/dock.css             | 152 ++++++++++++++++++++++
+ src/utils/cn.js                 |   3 +
+ 7 files changed, 568 insertions(+), 1 deletion(-)
+ create mode 100644 src/components/Dock.jsx
+ create mode 100644 src/components/PublicDock.jsx
+ create mode 100644 src/styles/dock.css
+ create mode 100644 src/utils/cn.js
+
+diff --git a/package-lock.json b/package-lock.json
+index cf030a9..5452473 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -14,6 +14,7 @@
+         "cookie-parser": "^1.4.7",
+         "express": "^4.21.2",
+         "lucide-react": "^0.468.0",
++        "motion": "^14.9.1",
+         "multer": "^2.5.0",
+         "react": "^18.3.1",
+         "react-dom": "^18.3.1",
+@@ -1851,6 +1852,33 @@
+         "node": ">= 0.6"
+       }
+     },
++    "node_modules/framer-motion": {
++      "version": "14.9.1",
++      "resolved": "https://registry.npmjs.org/framer-motion/-/framer-motion-14.9.1.tgz",
++      "integrity": "sha512-WDWNT2ixHdmpvGg02BZWI/SWwRYzPiMUf4aIkTBgrxxD8RYFdZO3fCM4pnLMo6j8mUpj0+BuJRHQBChI4v3Anw==",
++      "license": "MIT",
++      "dependencies": {
++        "motion-dom": "14.9.1",
++        "motion-utils": "14.7.0",
++        "tslib": "^2.4.0"
++      },
++      "peerDependencies": {
++        "react": "^18.0.0 || ^19.0.0",
++        "react-dom": "^18.0.0 || ^19.0.0",
++        "remix": "^3.1.0"
++      },
++      "peerDependenciesMeta": {
++        "react": {
++          "optional": true
++        },
++        "react-dom": {
++          "optional": true
++        },
++        "remix": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/fresh": {
+       "version": "0.5.2",
+       "resolved": "https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz",
+@@ -2206,6 +2234,47 @@
+       "integrity": "sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==",
+       "license": "MIT"
+     },
++    "node_modules/motion": {
++      "version": "14.9.1",
++      "resolved": "https://registry.npmjs.org/motion/-/motion-14.9.1.tgz",
++      "integrity": "sha512-u58zTNOs6vefAwvPncTJ8vkQm+P08V4+mhNgap8p/mFZjl8+gWp7SG4cMTamebVSgpX6PcDtqzWpZngqKcfd7A==",
++      "license": "MIT",
++      "dependencies": {
++        "framer-motion": "14.9.1",
++        "tslib": "^2.4.0"
++      },
++      "peerDependencies": {
++        "react": "^18.0.0 || ^19.0.0",
++        "react-dom": "^18.0.0 || ^19.0.0",
++        "remix": "^3.1.0"
++      },
++      "peerDependenciesMeta": {
++        "react": {
++          "optional": true
++        },
++        "react-dom": {
++          "optional": true
++        },
++        "remix": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/motion-dom": {
++      "version": "14.9.1",
++      "resolved": "https://registry.npmjs.org/motion-dom/-/motion-dom-14.9.1.tgz",
++      "integrity": "sha512-2eCCGXH2Yv09lM8GHK3TdfChrcvHxzVY19LD9VraoHEaQl5+PuGnTNnmJaBAR+5MdxUVdsLFXygFJjR9RwRSxw==",
++      "license": "MIT",
++      "dependencies": {
++        "motion-utils": "14.7.0"
++      }
++    },
++    "node_modules/motion-utils": {
++      "version": "14.7.0",
++      "resolved": "https://registry.npmjs.org/motion-utils/-/motion-utils-14.7.0.tgz",
++      "integrity": "sha512-woO0/Nb7ys75f94fjvQi/6leiHGvZUYkeHUPEZ3vxsV+9OpEVhkxp01x8MlRwX0zt31EqgXsKDAoBoJLC148Tw==",
++      "license": "MIT"
++    },
+     "node_modules/ms": {
+       "version": "2.1.3",
+       "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+@@ -2952,6 +3021,12 @@
+         "node": ">=0.6"
+       }
+     },
++    "node_modules/tslib": {
++      "version": "2.9.1",
++      "resolved": "https://registry.npmjs.org/tslib/-/tslib-2.9.1.tgz",
++      "integrity": "sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==",
++      "license": "0BSD"
++    },
+     "node_modules/tunnel-agent": {
+       "version": "0.6.0",
+       "resolved": "https://registry.npmjs.org/tunnel-agent/-/tunnel-agent-0.6.0.tgz",
+diff --git a/package.json b/package.json
+index 49c17ad..0012755 100644
+--- a/package.json
++++ b/package.json
+@@ -23,6 +23,7 @@
+     "cookie-parser": "^1.4.7",
+     "express": "^4.21.2",
+     "lucide-react": "^0.468.0",
++    "motion": "^14.9.1",
+     "multer": "^2.5.0",
+     "react": "^18.3.1",
+     "react-dom": "^18.3.1",
+diff --git a/src/components/Dock.jsx b/src/components/Dock.jsx
+new file mode 100644
+index 0000000..41c68f4
+--- /dev/null
++++ b/src/components/Dock.jsx
+@@ -0,0 +1,221 @@
++import React, { useCallback, useEffect, useRef, useState } from 'react';
++import {
++  motion,
++  useMotionValue,
++  useSpring,
++  useTransform,
++  AnimatePresence,
++} from 'motion/react';
++import { Link } from 'react-router-dom';
++import { cn } from '../utils/cn.js';
++import '../styles/dock.css';
++
++const DEFAULT_SPRING = {
++  stiffness: 400,
++  damping: 25,
++  mass: 0.4,
++};
++
++function DockSeparator() {
++  return (
++    <div className="dock-separator" aria-hidden="true">
++      <span />
++    </div>
++  );
++}
++
++function DockIcon({
++  item,
++  mouseX,
++  magnification,
++  distance,
++  iconSize,
++  borderRadius,
++  alwaysShowLabels,
++  springOptions,
++  onHover,
++  iconRef,
++}) {
++  const wrapperRef = useRef(null);
++
++  const distanceFromMouse = useTransform(mouseX, (val) => {
++    const el = wrapperRef.current;
++    if (!el) return distance * 100;
++    const rect = el.getBoundingClientRect();
++    return Math.abs(val - (rect.left + rect.width / 2));
++  });
++
++  const gaussian = (d) =>
++    (magnification - 1) * Math.exp(-(d * d) / (2 * distance * distance)) + 1;
++
++  const widthRaw = useTransform(distanceFromMouse, (d) => iconSize * gaussian(d));
++  const heightRaw = useTransform(distanceFromMouse, (d) => iconSize * gaussian(d));
++
++  const width = useSpring(widthRaw, springOptions);
++  const height = useSpring(heightRaw, springOptions);
++
++  const sharedProps = {
++    onClick: item.onClick,
++    onMouseEnter: () => onHover(iconRef),
++    onMouseLeave: () => onHover(null),
++    'aria-label': item.label,
++    'aria-current': item.active ? 'page' : undefined,
++    style: { borderRadius },
++    className: cn('dock-button', item.active && 'is-active'),
++  };
++
++  let control;
++  if (item.to) {
++    control = (
++      <Link to={item.to} {...sharedProps}>
++        {item.icon}
++      </Link>
++    );
++  } else if (item.href) {
++    control = (
++      <a href={item.href} {...sharedProps}>
++        {item.icon}
++      </a>
++    );
++  } else {
++    control = (
++      <button type="button" {...sharedProps}>
++        {item.icon}
++      </button>
++    );
++  }
++
++  return (
++    <motion.div
++      ref={wrapperRef}
++      className="dock-item"
++      style={{ width, height: iconSize }}
++    >
++      <motion.div
++        ref={iconRef}
++        className="dock-icon-wrap"
++        style={{ width, height, bottom: 0 }}
++      >
++        {control}
++      </motion.div>
++
++      {alwaysShowLabels && <span className="dock-label">{item.label}</span>}
++    </motion.div>
++  );
++}
++
++export function Dock({
++  items,
++  magnification = 1.8,
++  distance = 120,
++  iconSize = 40,
++  gap = 4,
++  borderRadius = 16,
++  alwaysShowLabels = false,
++  springOptions = DEFAULT_SPRING,
++  className,
++  ariaLabel = 'Dock navigation',
++}) {
++  const mouseX = useMotionValue(Infinity);
++  const dockRef = useRef(null);
++  const iconRefs = useRef([]);
++
++  if (iconRefs.current.length !== items.length) {
++    iconRefs.current = items.map((_, i) => iconRefs.current[i] || React.createRef());
++  }
++
++  const [hoveredIndex, setHoveredIndex] = useState(null);
++  const [tooltipX, setTooltipX] = useState(0);
++  const [tooltipBottomOffset, setTooltipBottomOffset] = useState(0);
++
++  useEffect(() => {
++    if (hoveredIndex === null) return undefined;
++
++    let raf;
++    const update = () => {
++      const iconEl = iconRefs.current[hoveredIndex]?.current;
++      const dockEl = dockRef.current;
++      if (iconEl && dockEl) {
++        const iconRect = iconEl.getBoundingClientRect();
++        const dockRect = dockEl.getBoundingClientRect();
++        setTooltipX(iconRect.left - dockRect.left + iconRect.width / 2);
++        setTooltipBottomOffset(dockRect.bottom - iconRect.top);
++      }
++      raf = requestAnimationFrame(update);
++    };
++    raf = requestAnimationFrame(update);
++    return () => cancelAnimationFrame(raf);
++  }, [hoveredIndex]);
++
++  const handleHover = useCallback((ref) => {
++    if (ref === null) {
++      setHoveredIndex(null);
++      return;
++    }
++    const idx = iconRefs.current.findIndex((r) => r === ref);
++    setHoveredIndex(idx >= 0 ? idx : null);
++  }, []);
++
++  return (
++    <motion.div
++      ref={dockRef}
++      role="navigation"
++      aria-label={ariaLabel}
++      className={cn('dock', className)}
++      style={{ gap, borderRadius }}
++      onMouseMove={(e) => mouseX.set(e.clientX)}
++      onMouseLeave={() => mouseX.set(Infinity)}
++    >
++      {items.map((item, i) => (
++        <React.Fragment key={item.label || i}>
++          <DockIcon
++            item={item}
++            mouseX={mouseX}
++            magnification={magnification}
++            distance={distance}
++            iconSize={iconSize}
++            borderRadius={borderRadius}
++            alwaysShowLabels={alwaysShowLabels}
++            springOptions={springOptions}
++            onHover={handleHover}
++            iconRef={iconRefs.current[i]}
++          />
++          {item.separator && <DockSeparator />}
++        </React.Fragment>
++      ))}
++
++      {!alwaysShowLabels && (
++        <AnimatePresence>
++          {hoveredIndex !== null && items[hoveredIndex] && (
++            <motion.div
++              key="dock-tooltip"
++              className="dock-tooltip-wrap"
++              style={{
++                left: tooltipX,
++                bottom: tooltipBottomOffset + 8,
++                x: '-50%',
++              }}
++              initial={{ opacity: 0, y: 6, scale: 0.94 }}
++              animate={{ opacity: 1, y: 0, scale: 1 }}
++              exit={{ opacity: 0, y: 6, scale: 0.94 }}
++              transition={{ duration: 0.13, ease: 'easeOut' }}
++            >
++              <span className="dock-tooltip">{items[hoveredIndex].label}</span>
++              <svg
++                width="8"
++                height="4"
++                viewBox="0 0 8 4"
++                className="dock-tooltip-arrow"
++                aria-hidden="true"
++              >
++                <path d="M0 0L4 4L8 0" fill="currentColor" />
++              </svg>
++            </motion.div>
++          )}
++        </AnimatePresence>
++      )}
++    </motion.div>
++  );
++}
++
++export default Dock;
+diff --git a/src/components/PublicDock.jsx b/src/components/PublicDock.jsx
+new file mode 100644
+index 0000000..903ac4f
+--- /dev/null
++++ b/src/components/PublicDock.jsx
+@@ -0,0 +1,109 @@
++import React from 'react';
++import { useLocation } from 'react-router-dom';
++import {
++  Home,
++  Compass,
++  Layers,
++  Briefcase,
++  Mail,
++  GraduationCap,
++  UserRound,
++  ShieldCheck,
++  ArrowUpRight,
++} from 'lucide-react';
++import { Dock } from './Dock.jsx';
++import { useAuth } from '../context/AuthContext.jsx';
++
++export default function PublicDock() {
++  const location = useLocation();
++  const { user } = useAuth();
++  const isTracksHash = location.pathname === '/' && location.hash === '#tracks';
++
++  const items = [
++    {
++      label: 'Overview',
++      icon: <Home />,
++      to: '/',
++      active: location.pathname === '/' && !isTracksHash,
++    },
++    {
++      label: 'Vision',
++      icon: <Compass />,
++      to: '/about',
++      active: location.pathname === '/about',
++    },
++    {
++      label: 'Evaluation Roles',
++      icon: <Layers />,
++      to: '/#tracks',
++      active: isTracksHash,
++    },
++    {
++      label: 'Careers',
++      icon: <Briefcase />,
++      to: '/careers',
++      active: location.pathname === '/careers',
++    },
++    {
++      label: 'Contact',
++      icon: <Mail />,
++      to: '/contact',
++      active: location.pathname === '/contact',
++      separator: true,
++    },
++  ];
++
++  if (user) {
++    items.push({
++      label:
++        user.role === 'admin'
++          ? 'Admin Console'
++          : user.accountType === 'candidate'
++          ? 'Exam Portal'
++          : 'Employee Portal',
++      icon: user.role === 'admin' ? <ShieldCheck /> : <UserRound />,
++      to:
++        user.role === 'admin'
++          ? '/admin'
++          : user.accountType === 'candidate'
++          ? '/exam-portal'
++          : '/portal',
++      active: false,
++    });
++  } else {
++    items.push(
++      {
++        label: 'Exam Portal',
++        icon: <GraduationCap />,
++        to: '/exam-login',
++        active: false,
++      },
++      {
++        label: 'Employee Login',
++        icon: <UserRound />,
++        to: '/login',
++        active: false,
++      }
++    );
++  }
++
++  items.push({
++    label: 'Apply Now',
++    icon: <ArrowUpRight />,
++    to: '/careers',
++    active: false,
++  });
++
++  return (
++    <div className="public-dock-shell">
++      <Dock
++        items={items}
++        iconSize={38}
++        distance={110}
++        magnification={1.65}
++        borderRadius={14}
++        ariaLabel="Quick public navigation"
++      />
++    </div>
++  );
++}
+diff --git a/src/components/PublicLayout.jsx b/src/components/PublicLayout.jsx
+index 476c52a..4495918 100644
+--- a/src/components/PublicLayout.jsx
++++ b/src/components/PublicLayout.jsx
+@@ -1,4 +1,4 @@
+-import React, { useEffect, useState } from 'react';
++import React, { lazy, Suspense, useEffect, useState } from 'react';
+ import { Link, Outlet, useLocation } from 'react-router-dom';
+ import { MapPin, Mail, Phone, ExternalLink } from 'lucide-react';
+ import PublicNavbar, { CosmicBrandMark } from './PublicNavbar.jsx';
+@@ -7,6 +7,8 @@ import { WORK_DOMAINS } from './DomainVisuals.jsx';
+ import { apiRequest } from '../utils/api.js';
+ import { resolveCompanyMap } from '../utils/mapHelper.js';
+ 
++const PublicDock = lazy(() => import('./PublicDock.jsx'));
++
+ export default function PublicLayout() {
+   const location = useLocation();
+   const isHome = location.pathname === '/';
+@@ -247,6 +249,10 @@ export default function PublicLayout() {
+           </div>
+         </div>
+       </footer>
++
++      <Suspense fallback={null}>
++        <PublicDock />
++      </Suspense>
+     </div>
+   );
+ }
+diff --git a/src/styles/dock.css b/src/styles/dock.css
+new file mode 100644
+index 0000000..3df3c19
+--- /dev/null
++++ b/src/styles/dock.css
+@@ -0,0 +1,152 @@
++.dock {
++  position: relative;
++  display: flex;
++  align-items: flex-end;
++  overflow: visible;
++  padding: 8px;
++  border: 1px solid rgba(255, 255, 255, 0.08);
++  background: rgba(10, 10, 12, 0.8);
++  backdrop-filter: blur(18px);
++  -webkit-backdrop-filter: blur(18px);
++  box-shadow: none;
++  transition: box-shadow 0.2s ease;
++}
++
++.dock:hover {
++  box-shadow:
++    0 0 0 1px rgba(255, 255, 255, 0.02),
++    0 2px 8px rgba(0, 0, 0, 0.35),
++    0 8px 24px rgba(0, 0, 0, 0.45);
++}
++
++.dock-item {
++  position: relative;
++  display: flex;
++  align-items: flex-end;
++  justify-content: center;
++}
++
++.dock-icon-wrap {
++  position: absolute;
++  left: 50%;
++  transform: translateX(-50%);
++}
++
++.dock-button {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  width: 100%;
++  height: 100%;
++  padding: 0;
++  border: none;
++  background: transparent;
++  color: rgba(255, 255, 255, 0.7);
++  text-decoration: none;
++  cursor: pointer;
++  transition:
++    color 0.15s ease,
++    background-color 0.15s ease;
++}
++
++.dock-button:hover {
++  background: rgba(255, 255, 255, 0.06);
++  color: #ffffff;
++}
++
++.dock-button:focus-visible {
++  outline: none;
++  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
++}
++
++.dock-button.is-active {
++  background: rgba(255, 255, 255, 0.08);
++  color: #ffffff;
++}
++
++.dock-button svg {
++  width: 55%;
++  height: 55%;
++  stroke-width: 1.75;
++}
++
++.dock-separator {
++  display: flex;
++  align-items: center;
++  align-self: stretch;
++  margin: 0 4px;
++}
++
++.dock-separator span {
++  width: 1px;
++  height: 24px;
++  background: rgba(255, 255, 255, 0.1);
++}
++
++.dock-label {
++  position: absolute;
++  top: 100%;
++  left: 50%;
++  transform: translateX(-50%);
++  margin-top: 4px;
++  font-size: 10px;
++  font-weight: 500;
++  letter-spacing: -0.01em;
++  line-height: 1;
++  color: rgba(255, 255, 255, 0.4);
++  white-space: nowrap;
++  pointer-events: none;
++  user-select: none;
++}
++
++.dock-tooltip-wrap {
++  position: absolute;
++  z-index: 50;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  pointer-events: none;
++}
++
++.dock-tooltip {
++  padding: 4px 8px;
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  border-radius: 6px;
++  background: #0a0a0c;
++  color: #ffffff;
++  font-size: 13px;
++  font-weight: 500;
++  white-space: nowrap;
++  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
++}
++
++.dock-tooltip-arrow {
++  margin-top: -1px;
++  color: #0a0a0c;
++}
++
++.public-dock-shell {
++  position: fixed;
++  left: 50%;
++  bottom: 18px;
++  z-index: 60;
++  display: none;
++  transform: translateX(-50%);
++}
++
++@media (min-width: 901px) {
++  .public-dock-shell {
++    display: block;
++  }
++
++  .futuristic-public-shell {
++    padding-bottom: 88px;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .dock,
++  .dock-button {
++    transition: none;
++  }
++}
+diff --git a/src/utils/cn.js b/src/utils/cn.js
+new file mode 100644
+index 0000000..8d2733c
+--- /dev/null
++++ b/src/utils/cn.js
+@@ -0,0 +1,3 @@
++export function cn(...inputs) {
++  return inputs.filter(Boolean).join(' ');
++}
+-- 
+2.47.3
+
