@@ -1,0 +1,89 @@
+/*
+ * Apple-style Dock (Motion-Primitives Dock, adapted).
+ * Component chrome lives here; the few utility classes used by
+ * consumers are scoped to the dock subtree / its direct wrapper,
+ * so existing site styles are never affected.
+ */
+
+.mp-dock {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0.5rem;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .mp-dock {
+    background: rgba(24, 24, 28, 0.55);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .mp-dock-label {
+    background: rgba(30, 30, 34, 0.95) !important;
+    color: #f4f4f5 !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+  }
+}
+
+.mp-dock-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.mp-dock-label {
+  position: absolute;
+  left: 50%;
+  top: -1.4rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: #18181b;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.mp-dock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Scoped utilities for dock consumers (AppleStyleDock) --- */
+div:has(> .mp-dock).absolute { position: absolute; }
+div:has(> .mp-dock).bottom-2 { bottom: 0.5rem; }
+div:has(> .mp-dock).left-1\/2 { left: 50%; }
+div:has(> .mp-dock).max-w-full { max-width: 100%; }
+div:has(> .mp-dock).-translate-x-1\/2 { transform: translateX(-50%); }
+
+.mp-dock.items-end { align-items: flex-end; }
+.mp-dock.pb-3 { padding-bottom: 0.75rem; }
+
+.mp-dock .aspect-square { aspect-ratio: 1 / 1; }
+.mp-dock .rounded-full { border-radius: 9999px; }
+.mp-dock .bg-gray-200 { background: #e5e7eb; }
+.mp-dock .h-full { height: 100%; }
+.mp-dock .w-full { width: 100%; }
+.mp-dock .text-neutral-600 { color: #525252; }
+
+@media (prefers-color-scheme: dark) {
+  .mp-dock .dark\:bg-neutral-800 { background: #262626; }
+  .mp-dock .dark\:text-neutral-300 { color: #d4d4d4; }
+}

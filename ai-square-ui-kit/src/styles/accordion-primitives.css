@@ -1,0 +1,52 @@
+/*
+ * Scoped utility styles for Motion-Primitives style components
+ * (e.g. src/components/core/accordion.jsx + AccordionVariant).
+ * Everything is namespaced under .mp-accordion so the existing
+ * site styles (futuristic.css / neumorphic.css) are never affected.
+ */
+
+.mp-accordion {
+  --mp-text-strong: #09090b;
+  --mp-text-muted: #71717a;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mp-accordion {
+    --mp-text-strong: #fafafa;
+    --mp-text-muted: #a1a1aa;
+  }
+}
+
+.mp-accordion-trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+/* Chevron rotation for group-data-expanded triggers */
+.mp-accordion [data-expanded='true'] .lucide-chevron-right {
+  transform: rotate(90deg);
+}
+
+/* --- Minimal Tailwind-style utilities used by accordion consumers --- */
+.mp-accordion .flex { display: flex; }
+.mp-accordion .w-full { width: 100%; }
+.mp-accordion .flex-col { flex-direction: column; }
+.mp-accordion .items-center { align-items: center; }
+.mp-accordion .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.mp-accordion .py-0\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+.mp-accordion .text-left { text-align: left; }
+.mp-accordion .h-4 { height: 1rem; }
+.mp-accordion .w-4 { width: 1rem; }
+.mp-accordion .ml-2 { margin-left: 0.5rem; }
+.mp-accordion .pl-6 { padding-left: 1.5rem; }
+.mp-accordion .pr-2 { padding-right: 0.5rem; }
+.mp-accordion .origin-left { transform-origin: left; }
+.mp-accordion .transition-transform { transition-property: transform; }
+.mp-accordion .duration-200 { transition-duration: 200ms; }
+.mp-accordion .text-zinc-950 { color: var(--mp-text-strong); }
+.mp-accordion .text-zinc-50 { color: var(--mp-text-strong); }
+.mp-accordion .text-zinc-500 { color: var(--mp-text-muted); }
+.mp-accordion .text-zinc-400 { color: var(--mp-text-muted); }

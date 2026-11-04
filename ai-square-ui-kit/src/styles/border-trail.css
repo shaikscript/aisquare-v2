@@ -1,0 +1,51 @@
+/*
+ * Scoped utility styles for the BorderTrail demo card
+ * (src/components/BorderTrailCard1.jsx).
+ *
+ * The card is the element that directly contains .mp-border-trail,
+ * so every rule is scoped with :has(> .mp-border-trail) — existing
+ * site styles are never affected. Tailwind is not required.
+ */
+
+div:has(> .mp-border-trail) {
+  --mp-card-bg: #e4e4e7;
+  --mp-bar-bg: #52525b;
+}
+@media (prefers-color-scheme: dark) {
+  div:has(> .mp-border-trail) {
+    --mp-card-bg: #27272a;
+    --mp-bar-bg: #52525b;
+  }
+}
+
+div:has(> .mp-border-trail).relative { position: relative; }
+div:has(> .mp-border-trail).flex { display: flex; }
+div:has(> .mp-border-trail).h-\[200px\] { height: 200px; }
+div:has(> .mp-border-trail).w-\[300px\] { width: 300px; }
+div:has(> .mp-border-trail).flex-col { flex-direction: column; }
+div:has(> .mp-border-trail).items-center { align-items: center; }
+div:has(> .mp-border-trail).justify-center { justify-content: center; }
+div:has(> .mp-border-trail).rounded-md { border-radius: 0.375rem; overflow: hidden; }
+div:has(> .mp-border-trail).bg-zinc-200 { background: var(--mp-card-bg); }
+div:has(> .mp-border-trail).px-5 { padding-left: 1.25rem; padding-right: 1.25rem; }
+div:has(> .mp-border-trail).py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+div:has(> .mp-border-trail) .flex { display: flex; }
+div:has(> .mp-border-trail) .h-full { height: 100%; }
+div:has(> .mp-border-trail) .flex-col { flex-direction: column; }
+div:has(> .mp-border-trail) .items-start { align-items: flex-start; }
+div:has(> .mp-border-trail) .justify-center { justify-content: center; }
+div:has(> .mp-border-trail) .space-y-2 > * + * { margin-top: 0.5rem; }
+div:has(> .mp-border-trail) .animate-pulse { animation: mp-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+div:has(> .mp-border-trail) .h-1 { height: 0.25rem; }
+div:has(> .mp-border-trail) .w-4 { width: 1rem; }
+div:has(> .mp-border-trail) .w-10 { width: 2.5rem; }
+div:has(> .mp-border-trail) .w-12 { width: 3rem; }
+div:has(> .mp-border-trail) .rounded-\[4px\] { border-radius: 4px; }
+div:has(> .mp-border-trail) .bg-zinc-600 { background: var(--mp-bar-bg); }
+
+@keyframes mp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

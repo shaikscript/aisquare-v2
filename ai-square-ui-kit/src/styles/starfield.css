@@ -1,0 +1,41 @@
+/*
+ * MinimalStarfield placement styles (extracted from futuristic.css).
+ * Only needed if you use src/components/MinimalStarfield.jsx in a
+ * project that does not already have these classes.
+ * In the main ai-square-v2 project these already exist — do NOT re-add.
+ */
+
+.minimal-starfield {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.minimal-starfield--ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.minimal-starfield--hero {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.95;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.88) 56%,
+    rgba(0, 0, 0, 0.25) 84%,
+    transparent 96%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.88) 56%,
+    rgba(0, 0, 0, 0.25) 84%,
+    transparent 96%
+  );
+}

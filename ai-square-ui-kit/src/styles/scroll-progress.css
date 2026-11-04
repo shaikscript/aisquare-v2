@@ -1,0 +1,65 @@
+/*
+ * ScrollProgress (Motion-Primitives style), adapted for AI Square.
+ * Bar styling lives on .mp-scroll-progress itself; the demo's utility
+ * classes are scoped to the scroll container that holds a progress bar
+ * (div:has(.mp-scroll-progress)) so existing site styles are unaffected.
+ */
+
+.mp-scroll-progress {
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0),
+    #111111 75%,
+    #111111 100%
+  );
+}
+@media (prefers-color-scheme: dark) {
+  .mp-scroll-progress {
+    background: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0),
+      #ffffff 75%,
+      #ffffff 100%
+    );
+  }
+}
+
+/* --- Scoped utilities for the demo scroll container --- */
+div:has(.mp-scroll-progress).h-\[350px\] { height: 350px; position: relative; }
+div:has(.mp-scroll-progress).overflow-auto { overflow: auto; }
+div:has(.mp-scroll-progress).px-8 { padding-left: 2rem; padding-right: 2rem; }
+div:has(.mp-scroll-progress).pb-16 { padding-bottom: 4rem; }
+div:has(.mp-scroll-progress).pt-16 { padding-top: 4rem; }
+
+div:has(.mp-scroll-progress) .pointer-events-none { pointer-events: none; }
+div:has(.mp-scroll-progress) .absolute { position: absolute; }
+div:has(.mp-scroll-progress) .left-0 { left: 0; }
+div:has(.mp-scroll-progress) .top-0 { top: 0; }
+div:has(.mp-scroll-progress) .h-24 { height: 6rem; }
+div:has(.mp-scroll-progress) .h-0\.5 { height: 0.125rem; }
+div:has(.mp-scroll-progress) .w-full { width: 100%; }
+div:has(.mp-scroll-progress) .bg-white { background: #ffffff; }
+div:has(.mp-scroll-progress) .backdrop-blur-xl {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Frosted fade at the top of the scroll box (the overlay div). */
+div:has(.mp-scroll-progress) > div:first-of-type {
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+/* Track line behind the progress bar. */
+div:has(.mp-scroll-progress) .dark\:bg-\[\#111111\] { background: rgba(0, 0, 0, 0.06); }
+
+/* Dummy content paragraphs. */
+div:has(.mp-scroll-progress) .pb-4 { padding-bottom: 1rem; }
+div:has(.mp-scroll-progress) .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+div:has(.mp-scroll-progress) .text-sm { font-size: 0.875rem; line-height: 1.35rem; }
+div:has(.mp-scroll-progress) .text-zinc-500 { color: #71717a; }
+
+@media (prefers-color-scheme: dark) {
+  div:has(.mp-scroll-progress) .dark\:bg-neutral-950 { background: #0a0a0a; }
+  div:has(.mp-scroll-progress) .dark\:bg-\[\#111111\] { background: #111111; }
+}
